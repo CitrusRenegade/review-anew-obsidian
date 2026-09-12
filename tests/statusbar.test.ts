@@ -31,7 +31,12 @@ vi.mock("../src/reviewDetailsPopover", () => ({
   },
 }));
 
-import { formatDueStatus, ReviewStatusBar } from "../src/statusbar";
+import {
+  formatDueStatus,
+  getReviewStatusPresentation,
+  ReviewStatusBar,
+} from "../src/statusbar";
+import type { ReviewDetails } from "../src/reviewDetails";
 import type { ReviewSettings } from "../src/settings";
 
 function createStatusBarElement(): HTMLElement {
@@ -100,5 +105,28 @@ describe("formatDueStatus", () => {
     expect(formatDueStatus({ kind: "overdue", days: 59 })).toBe(
       "⚠ Overdue · 59d"
     );
+  });
+});
+
+describe("getReviewStatusPresentation", () => {
+  it.each([
+    [
+      { lastReviewedDay: null, timing: { kind: "never-reviewed", days: null } },
+      "⚠ Not reviewed",
+    ],
+    [
+      { lastReviewedDay: "2026-09-10", timing: { kind: "upcoming", days: 2 } },
+      "✓ 2026-09-10",
+    ],
+    [
+      { lastReviewedDay: "2026-09-10", timing: { kind: "due-today", days: 0 } },
+      "⚠ due today",
+    ],
+    [
+      { lastReviewedDay: "2026-09-10", timing: { kind: "overdue", days: 59 } },
+      "⚠ Overdue · 59d",
+    ],
+  ] as const)("renders %o without relying on caller-side state branches", (state, text) => {
+    expect(getReviewStatusPresentation(state as ReviewDetails)).toBe(text);
   });
 });

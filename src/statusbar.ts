@@ -4,15 +4,38 @@ import {
   DueCounterCache,
   getEffectiveInterval,
 } from "./review";
-import { getReviewDetails, type ReviewTiming } from "./reviewDetails";
+import {
+  getReviewDetails,
+  type ReviewDetails,
+  type ReviewTiming,
+} from "./reviewDetails";
 import { ReviewDetailsPopover } from "./reviewDetailsPopover";
 
-export function formatDueStatus(timing: ReviewTiming): string {
+type DueTiming = Extract<
+  ReviewTiming,
+  { kind: "overdue" } | { kind: "due-today" }
+>;
+
+export function formatDueStatus(timing: DueTiming): string {
   if (timing.kind === "overdue") {
     return `⚠ Overdue · ${timing.days}d`;
   }
 
   return "⚠ due today";
+}
+
+export function getReviewStatusPresentation(details: ReviewDetails): string {
+  if (!details.lastReviewedDay) return "⚠ Not reviewed";
+
+  switch (details.timing.kind) {
+    case "never-reviewed":
+      return "⚠ Not reviewed";
+    case "upcoming":
+      return `✓ ${details.lastReviewedDay}`;
+    case "due-today":
+    case "overdue":
+      return formatDueStatus(details.timing);
+  }
 }
 
 export class ReviewStatusBar {
@@ -79,16 +102,7 @@ export class ReviewStatusBar {
       return;
     }
 
-    if (!details.lastReviewedDay) {
-      this.el.setText("⚠ Not reviewed");
-    } else if (
-      details.timing.kind === "overdue" ||
-      details.timing.kind === "due-today"
-    ) {
-      this.el.setText(formatDueStatus(details.timing));
-    } else {
-      this.el.setText(`✓ ${details.lastReviewedDay}`);
-    }
+    this.el.setText(getReviewStatusPresentation(details));
   }
 
   openDetails(

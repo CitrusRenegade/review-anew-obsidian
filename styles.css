@@ -195,12 +195,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 480px) {
-  .review-details-calculation-row {
-    grid-template-columns: calc(1rem + var(--review-details-font-size-adjustment)) minmax(0, 1fr) minmax(0, max-content) max-content;
-  }
-}
-
 .review-due-counter {
   cursor: pointer;
   order: -1;
