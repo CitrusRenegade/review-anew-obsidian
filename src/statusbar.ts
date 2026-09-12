@@ -3,19 +3,23 @@ import { ReviewSettings } from "./settings";
 import {
   DueCounterCache,
   getEffectiveInterval,
-  getLastReviewedDay,
-  isDue,
-  ReviewedDayOverrideSource,
 } from "./review";
-import { getReviewDetails } from "./reviewDetails";
+import { getReviewDetails, type ReviewTiming } from "./reviewDetails";
 import { ReviewDetailsPopover } from "./reviewDetailsPopover";
+
+export function formatDueStatus(timing: ReviewTiming): string {
+  if (timing.kind === "overdue") {
+    return `⚠ Overdue · ${timing.days}d`;
+  }
+
+  return "⚠ due today";
+}
 
 export class ReviewStatusBar {
   private el: HTMLElement;
   private app: App;
   private getSettings: () => ReviewSettings;
   private markReviewed: (file: TFile) => Promise<boolean>;
-  private overrides?: ReviewedDayOverrideSource;
   private currentFile: TFile | null = null;
   private popover: ReviewDetailsPopover | null = null;
 
@@ -23,14 +27,12 @@ export class ReviewStatusBar {
     statusBarEl: HTMLElement,
     app: App,
     getSettings: () => ReviewSettings,
-    markReviewed: (file: TFile) => Promise<boolean>,
-    overrides?: ReviewedDayOverrideSource
+    markReviewed: (file: TFile) => Promise<boolean>
   ) {
     this.el = statusBarEl;
     this.app = app;
     this.getSettings = getSettings;
     this.markReviewed = markReviewed;
-    this.overrides = overrides;
 
     this.el.addClass("review-status-bar");
     this.el.setAttribute("role", "button");
@@ -66,19 +68,26 @@ export class ReviewStatusBar {
     }
 
     this.el.removeClass("review-hidden");
-    const lastReviewedDay = getLastReviewedDay(
+    const details = getReviewDetails(
       file,
       this.app,
       settings,
-      this.overrides
+      new Date()
     );
+    if (!details) {
+      this.el.addClass("review-hidden");
+      return;
+    }
 
-    if (!lastReviewedDay) {
+    if (!details.lastReviewedDay) {
       this.el.setText("⚠ Not reviewed");
-    } else if (isDue(file, this.app, settings, new Date(), this.overrides)) {
-      this.el.setText(`⚠ due · ${lastReviewedDay}`);
+    } else if (
+      details.timing.kind === "overdue" ||
+      details.timing.kind === "due-today"
+    ) {
+      this.el.setText(formatDueStatus(details.timing));
     } else {
-      this.el.setText(`✓ ${lastReviewedDay}`);
+      this.el.setText(`✓ ${details.lastReviewedDay}`);
     }
   }
 
@@ -94,8 +103,7 @@ export class ReviewStatusBar {
       file,
       this.app,
       settings,
-      new Date(),
-      this.overrides
+      new Date()
     );
     if (!details) return;
 
@@ -134,12 +142,11 @@ export class DueCounterStatusBar {
     statusBarEl: HTMLElement,
     app: App,
     getSettings: () => ReviewSettings,
-    onClick: () => void,
-    overrides?: ReviewedDayOverrideSource
+    onClick: () => void
   ) {
     this.el = statusBarEl;
     this.getSettings = getSettings;
-    this.cache = new DueCounterCache(app, getSettings, overrides);
+    this.cache = new DueCounterCache(app, getSettings);
 
     this.el.addClass("review-due-counter");
     this.el.setAttribute("data-tooltip-position", "top");
@@ -181,7 +188,4 @@ export class DueCounterStatusBar {
     this.cache.renameFile(file, oldPath);
   }
 
-  markReviewed(file: TFile, currentFile: TFile | null = file): void {
-    this.cache.markReviewed(file, currentFile);
-  }
 }

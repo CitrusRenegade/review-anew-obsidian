@@ -125,6 +125,15 @@ describe("getReviewDetails", () => {
 });
 
 describe("review details presentation", () => {
+  it("shows only an overdue count in one line", () => {
+    expect(
+      formatReviewTiming(
+        { kind: "overdue", days: 20 },
+        "2026-08-19"
+      )
+    ).toBe("20 days overdue");
+  });
+
   it("formats the compact upcoming review status", () => {
     expect(
       formatReviewTiming(
@@ -173,7 +182,7 @@ describe("review details presentation", () => {
       },
       {
         position: 4,
-        label: "Default interval",
+        label: "Global interval",
         value: "90 days",
         applied: false,
       },

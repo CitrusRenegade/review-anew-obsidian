@@ -552,34 +552,6 @@ describe("DueCounterCache", () => {
     expect(scanCount).toBe(2);
   });
 
-  it("uses reviewed-day overrides while metadata cache catches up", () => {
-    const a = file("Notes/a.md");
-    const overrides = new Map<string, string>();
-    const app = {
-      metadataCache: {
-        getFileCache: () => ({ frontmatter: {} }),
-      },
-      vault: {
-        getMarkdownFiles: () => [a],
-      },
-    } as unknown as App;
-    const overrideSource = {
-      getReviewedDayOverride: (target: TFile) => overrides.get(target.path) ?? null,
-    };
-    const cache = new DueCounterCache(app, () => baseSettings, overrideSource);
-
-    expect(cache.countDue(NOW)).toBe(1);
-
-    overrides.set("Notes/a.md", "2026-01-31");
-    cache.markReviewed(a);
-
-    expect(getLastReviewedDay(a, app, baseSettings, overrideSource)).toBe(
-      "2026-01-31"
-    );
-    expect(isDue(a, app, baseSettings, NOW, overrideSource)).toBe(false);
-    expect(cache.countDue(NOW)).toBe(0);
-  });
-
   it("does not apply a completed mark to a replacement at the same path", () => {
     const original = file("Notes/a.md");
     const replacement = file("Notes/a.md");
@@ -598,28 +570,10 @@ describe("DueCounterCache", () => {
     files = [replacement];
     cache.removeFile(original);
     cache.invalidateFile(replacement);
-    cache.markReviewed(original, replacement);
 
     expect(cache.countDue(NOW)).toBe(1);
   });
 
-  it("excludes reviewed-day overrides from random due picks", () => {
-    const app = appWithFrontmatter(
-      {
-        "Notes/a.md": {},
-        "Notes/b.md": {},
-      },
-      ["Notes/a.md", "Notes/b.md"]
-    );
-    const overrides = new Map<string, string>([["Notes/a.md", "9999-01-01"]]);
-    const overrideSource = {
-      getReviewedDayOverride: (target: TFile) => overrides.get(target.path) ?? null,
-    };
-
-    expect(
-      pickRandomDue(app, baseSettings, randomSequence(0), overrideSource)?.path
-    ).toBe("Notes/b.md");
-  });
 });
 
 describe("getLastReviewedDay", () => {

@@ -17,6 +17,7 @@ export interface FolderInterval {
 export type FolderFilterMode = "excluded" | "included";
 
 export interface ReviewSettings {
+  renameNoticeHandled?: boolean;
   globalIntervalDays: number;
   folderFilterMode: FolderFilterMode;
   excludedFolders: string[];
@@ -143,6 +144,7 @@ function asFolderIntervals(value: unknown): FolderInterval[] {
 export function loadReviewSettings(data: unknown): ReviewSettings {
   const raw = isRecord(data) ? data : {};
   const settings = {
+    renameNoticeHandled: raw.renameNoticeHandled === true,
     globalIntervalDays: asPositiveDayCount(
       raw.globalIntervalDays,
       DEFAULT_SETTINGS.globalIntervalDays

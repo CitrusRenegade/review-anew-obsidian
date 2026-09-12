@@ -27,6 +27,13 @@ This repository is an Obsidian plugin for scheduled note review.
 - `src/dates.ts` formats local calendar days as `YYYY-MM-DD`.
 - `src/interval.ts` parses positive integer day counts.
 
+## Review state updates
+
+- Metadata cache is the single read source for reviewed days across status, details, due counts, and random selection. Do not overlay a pending write's date or force a note to not-due when a write completes.
+- `src/reviewMarkCoordinator.ts` deduplicates and serializes writes by file identity and property key. Pending-operation state controls actions, not review calculations.
+- `src/main.ts` invalidates the affected due entry and refreshes from current metadata after a successful write, and again on metadata changes. Completion can precede or follow the metadata event; a newer edit or removed property must win over the original write's intent.
+- `tests/reviewLifecycle.test.ts` exercises this event/write ordering through the plugin lifecycle, alongside the calculation and UI unit tests.
+
 ## Tests
 
 - `tests/review.test.ts` covers interval resolution, include/exclude behavior, `never`, due logic, reviewed-day parsing, due counts, and random selection.

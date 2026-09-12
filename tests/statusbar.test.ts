@@ -31,7 +31,7 @@ vi.mock("../src/reviewDetailsPopover", () => ({
   },
 }));
 
-import { ReviewStatusBar } from "../src/statusbar";
+import { formatDueStatus, ReviewStatusBar } from "../src/statusbar";
 import type { ReviewSettings } from "../src/settings";
 
 function createStatusBarElement(): HTMLElement {
@@ -93,4 +93,12 @@ describe("ReviewStatusBar review details", () => {
       expect(popoverSpy.load).toHaveBeenCalledOnce();
     }
   );
+});
+
+describe("formatDueStatus", () => {
+  it("shows the overdue day count instead of a review date", () => {
+    expect(formatDueStatus({ kind: "overdue", days: 59 })).toBe(
+      "⚠ Overdue · 59d"
+    );
+  });
 });

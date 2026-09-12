@@ -2,7 +2,6 @@ import type { App, TFile } from "obsidian";
 import {
   getLastReviewedDay,
   getReviewIntervalCalculation,
-  type ReviewedDayOverrideSource,
   type ReviewIntervalCandidate,
   type ReviewIntervalCalculation,
 } from "./review";
@@ -63,7 +62,7 @@ export function formatReviewTiming(
   if (timing.kind === "due-today") return `Due ${nextReviewDay} · today`;
   if (timing.kind === "overdue") {
     const unit = timing.days === 1 ? "day" : "days";
-    return `Due ${nextReviewDay} · ${timing.days} ${unit} overdue`;
+    return `${timing.days} ${unit} overdue`;
   }
   const unit = timing.days === 1 ? "day" : "days";
   return `Due ${nextReviewDay} · in ${timing.days} ${unit}`;
@@ -99,7 +98,7 @@ export function formatCalculationRows(
     }
     return {
       position: index + 1,
-      label: "Default interval",
+      label: "Global interval",
       value: `${candidate.days} days`,
       applied: candidate.applied,
     };
@@ -110,14 +109,13 @@ export function getReviewDetails(
   file: TFile,
   app: App,
   settings: ReviewSettings,
-  now = new Date(),
-  overrides?: ReviewedDayOverrideSource
+  now = new Date()
 ): ReviewDetails | null {
   const calculation = getReviewIntervalCalculation(file, app, settings);
   const interval = calculation.effectiveIntervalDays;
   if (interval === null) return null;
 
-  const lastReviewedDay = getLastReviewedDay(file, app, settings, overrides);
+  const lastReviewedDay = getLastReviewedDay(file, app, settings);
   if (!lastReviewedDay) {
     return {
       calculation,
