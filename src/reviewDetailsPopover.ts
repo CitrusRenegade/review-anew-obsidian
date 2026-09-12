@@ -60,7 +60,7 @@ export class ReviewDetailsPopover extends Component {
     this.primaryEl = primaryEl;
     primaryEl.createDiv({
       cls: "review-details-title",
-      text: "Review Simple",
+      text: "Review Anew",
     });
     const headerEl = primaryEl.createDiv({ cls: "review-details-header" });
     const summaryEl = headerEl.createDiv({ cls: "review-details-summary" });
