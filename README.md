@@ -1,8 +1,10 @@
-# Review Simple
+# Review Anew
+
+> Review Simple is now **Review Anew**. Your settings, review dates, and hotkeys are preserved. No migration is needed.
 
 Helps you reread and refine your notes on a recurring schedule. Last review date lives in each note's frontmatter.
 
-<img src=".github/assets/hero.jpg" alt="Review Simple due and reviewed note statuses">
+<img src=".github/assets/hero.jpg" alt="Review Anew due and reviewed note statuses">
 
 ## Features
 
@@ -19,7 +21,7 @@ Helps you reread and refine your notes on a recurring schedule. Last review date
 
 ## Quick start
 
-1. Install **Review Simple** from [Obsidian's Community Plugins](https://community.obsidian.md/plugins/review-simple).
+1. Install **Review Anew** from [Obsidian's Community Plugins](https://community.obsidian.md/plugins/review-simple).
 2. Set folders to review and mode that fits your needs.
 3. Choose a review interval (in days).
 4. Reread to refine. Open a random due note via command palette, or by clicking the counter in the status bar.
@@ -29,7 +31,7 @@ For unreleased builds from `master`, install `CitrusRenegade/review-simple-obsid
 
 ## Intervals
 
-Review Simple uses folder settings for batch rules and frontmatter for per-note overrides.
+Review Anew uses folder settings for batch rules and frontmatter for per-note overrides.
 
 Precedence:
 
@@ -73,7 +75,7 @@ review_interval: 14
 
 ## Configuration
 
-Settings → Review Simple:
+Settings → Review Anew:
 
 - Global review interval (days).
 - Folder filter mode (excluded / included-only) for batch review scope.
@@ -89,7 +91,7 @@ There are several Obsidian plugins and workflows for revisiting notes with their
 
 **[zachmueller/spaced-everything](https://github.com/zachmueller/spaced-everything)** - Implements a more opinionated workflow around spaced repetition for writing and incremental note development. Its "Onboard All Notes" feature performs a bulk frontmatter update, which may be less beginner-friendly in existing vaults. This is a broader onboarding model rather than a lightweight rule-based review workflow.
 
-**[dartungar/obsidian-simple-note-review](https://github.com/dartungar/obsidian-simple-note-review)** - The closest conceptual alternative: it focuses on reviewing, resurfacing, and repeating ordinary notes. Requires the Dataview plugin. It uses note sets based on tags, folders, creation date, or DataviewJS queries, and keeps a persistent queue for each note set. Maintenance status: no recent release; latest GitHub release was on Apr 5, 2024.
+**[dartungar/obsidian-simple-note-review](https://github.com/dartungar/obsidian-simple-note-review)** - The closest conceptual alternative: it focuses on reviewing, resurfacing, and repeating ordinary notes. Requires the Dataview plugin. It uses note sets based on tags, folders, creation date, or DataviewJS queries, and keeps a persistent queue for each note set.
 
 **[Obsidian Spaced Repetition](https://github.com/st3v3nmw/obsidian-spaced-repetition)** - A mature spaced repetition plugin with a strong flashcards-first workflow. Whole-note review is supported, but the main workflow and documentation are centered around creating and reviewing flashcards.
 
