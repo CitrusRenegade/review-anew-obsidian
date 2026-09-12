@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { App, TFile } from "obsidian";
 import {
+  addCalendarDays,
   countDue,
   DueCounterCache,
+  getCalendarDayDelta,
   getCalendarDaysSince,
   getEffectiveInterval,
   getLastReviewedDay,
@@ -645,6 +647,16 @@ describe("getLastReviewedDay", () => {
 
     expect(getLastReviewedDay(file("Notes/datetime.md"), app, baseSettings)).toBeNull();
     expect(getLastReviewedDay(file("Notes/text.md"), app, baseSettings)).toBeNull();
+  });
+});
+
+describe("calendar review-day arithmetic", () => {
+  it("keeps a signed calendar-day delta for review-detail timing", () => {
+    expect(getCalendarDayDelta("2026-09-10", new Date(2026, 7, 28))).toBe(-13);
+  });
+
+  it("adds an interval as a canonical review day across a month boundary", () => {
+    expect(addCalendarDays("2026-08-10", 30)).toBe("2026-09-09");
   });
 });
 

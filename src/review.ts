@@ -117,16 +117,39 @@ export function getOverdueRatioScore(
   return getCalendarDaysSince(lastReviewedDay, now) / intervalDays;
 }
 
-export function getCalendarDaysSince(
-  lastReviewedDay: ReviewDay,
+export function addCalendarDays(
+  reviewDay: ReviewDay,
+  days: number
+): ReviewDay | null {
+  const parsed = parseDateOnly(reviewDay);
+  if (!parsed) return null;
+  const [year, month, day] = parsed.split("-").map(Number);
+  const result = new Date(Date.UTC(year, month - 1, day + days));
+  if (Number.isNaN(result.getTime())) return null;
+  return formatReviewDay(
+    result.getUTCFullYear(),
+    result.getUTCMonth() + 1,
+    result.getUTCDate()
+  );
+}
+
+export function getCalendarDayDelta(
+  reviewDay: ReviewDay,
   now = new Date()
 ): number {
-  const parsed = parseDateOnly(lastReviewedDay);
+  const parsed = parseDateOnly(reviewDay);
   if (!parsed) return 0;
   const [year, month, day] = parsed.split("-").map(Number);
   const reviewedDay = Date.UTC(year, month - 1, day);
   const nowDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.max(0, Math.floor((nowDay - reviewedDay) / DAY_MS));
+  return Math.floor((nowDay - reviewedDay) / DAY_MS);
+}
+
+export function getCalendarDaysSince(
+  lastReviewedDay: ReviewDay,
+  now = new Date()
+): number {
+  return Math.max(0, getCalendarDayDelta(lastReviewedDay, now));
 }
 
 export function pickTournamentWinner<T>(

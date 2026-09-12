@@ -1,5 +1,7 @@
 import type { App, TFile } from "obsidian";
 import {
+  addCalendarDays,
+  getCalendarDayDelta,
   getLastReviewedDay,
   getReviewIntervalCalculation,
   type ReviewIntervalCandidate,
@@ -14,7 +16,7 @@ export type ReviewTiming =
   | { kind: "upcoming"; days: number };
 
 export type ReviewTimingTone =
-  | "not-reviewed"
+  | "never-reviewed"
   | "due"
   | "overdue"
   | "reviewed";
@@ -38,31 +40,11 @@ export interface ReviewCalculationRow {
   applied: boolean;
 }
 
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-function addCalendarDays(day: string, days: number): string | null {
-  const [year, month, date] = day.split("-").map(Number);
-  const result = new Date(Date.UTC(year, month - 1, date + days));
-  if (Number.isNaN(result.getTime())) return null;
-  return `${result.getUTCFullYear()}-${pad2(result.getUTCMonth() + 1)}-${pad2(
-    result.getUTCDate()
-  )}`;
-}
-
-function getCalendarDaysSince(day: string, now: Date): number {
-  const [year, month, date] = day.split("-").map(Number);
-  const reviewedDay = Date.UTC(year, month - 1, date);
-  const currentDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.floor((currentDay - reviewedDay) / (24 * 60 * 60 * 1000));
-}
-
 export function getReviewTimingPresentation(
   timing: ReviewTiming
 ): ReviewTimingPresentation {
   if (timing.kind === "never-reviewed") {
-    return { text: "Not reviewed", tone: "not-reviewed" };
+    return { text: "Not reviewed", tone: "never-reviewed" };
   }
   if (timing.kind === "due-today") {
     return { text: "Due today", tone: "due" };
@@ -132,7 +114,7 @@ export function getReviewDetails(
   }
 
   const nextReviewDay = addCalendarDays(lastReviewedDay, interval);
-  const daysUntilDue = interval - getCalendarDaysSince(lastReviewedDay, now);
+  const daysUntilDue = interval - getCalendarDayDelta(lastReviewedDay, now);
   const timing: ReviewTiming =
     daysUntilDue < 0
       ? { kind: "overdue", days: Math.abs(daysUntilDue) }

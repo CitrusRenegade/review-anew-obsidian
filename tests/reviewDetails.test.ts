@@ -124,11 +124,22 @@ describe("getReviewDetails", () => {
   });
 });
 
+describe("getReviewTimingPresentation", () => {
+  it.each([
+    [{ kind: "never-reviewed", days: null }, "Not reviewed", "never-reviewed"],
+    [{ kind: "due-today", days: 0 }, "Due today", "due"],
+    [{ kind: "overdue", days: 2 }, "Overdue · 2 days", "overdue"],
+    [{ kind: "upcoming", days: 2 }, "Due in 2 days", "reviewed"],
+  ] as const)("maps %o to its stable text and semantic tone", (timing, text, tone) => {
+    expect(getReviewTimingPresentation(timing)).toEqual({ text, tone });
+  });
+});
+
 describe("review details presentation", () => {
   it("maps every review timing state to one presentation and visual tone", () => {
     expect(getReviewTimingPresentation({ kind: "never-reviewed", days: null })).toEqual({
       text: "Not reviewed",
-      tone: "not-reviewed",
+      tone: "never-reviewed",
     });
     expect(getReviewTimingPresentation({ kind: "due-today", days: 0 })).toEqual({
       text: "Due today",
