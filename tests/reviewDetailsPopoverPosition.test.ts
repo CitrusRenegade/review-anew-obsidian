@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateCalculationRowMinimumWidth,
+  calculatePopoverContentWidth,
   calculatePopoverMinimumRequiredWidth,
   calculatePopoverPosition,
+  calculatePopoverStackMinimumWidth,
   calculatePopoverWidth,
 } from "../src/reviewDetailsPopoverPosition";
 
@@ -30,6 +32,27 @@ describe("calculatePopoverMinimumRequiredWidth", () => {
         verticalScrollbarGutter: 15,
       })
     ).toBe(397);
+  });
+});
+
+describe("calculatePopoverStackMinimumWidth", () => {
+  it("uses the widest stacked header item without reserving a horizontal action gap", () => {
+    expect(
+      calculatePopoverStackMinimumWidth({
+        itemWidths: [112, 234, 176, 168],
+      })
+    ).toBe(234);
+  });
+});
+
+describe("calculatePopoverContentWidth", () => {
+  it("reserves the full calculation width before the disclosure is expanded", () => {
+    expect(
+      calculatePopoverContentWidth({
+        headerContentWidth: 234,
+        calculationContentWidth: 360,
+      })
+    ).toBe(360);
   });
 });
 

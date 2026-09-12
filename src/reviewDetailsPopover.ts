@@ -1,14 +1,16 @@
-import { Component } from "obsidian";
+import { Component, setIcon } from "obsidian";
 import {
   formatCalculationMode,
   formatCalculationRows,
-  formatReviewTiming,
+  getReviewTimingPresentation,
   type ReviewDetails,
 } from "./reviewDetails";
 import {
   calculateCalculationRowMinimumWidth,
+  calculatePopoverContentWidth,
   calculatePopoverMinimumRequiredWidth,
   calculatePopoverPosition,
+  calculatePopoverStackMinimumWidth,
   calculatePopoverWidth,
 } from "./reviewDetailsPopoverPosition";
 import { runReviewDetailsAction } from "./reviewDetailsAction";
@@ -16,9 +18,8 @@ import { runReviewDetailsAction } from "./reviewDetailsAction";
 export class ReviewDetailsPopover extends Component {
   private popoverEl: HTMLElement | null = null;
   private calculationEl: HTMLDetailsElement | null = null;
-  private headerEl: HTMLElement | null = null;
-  private timingEl: HTMLElement | null = null;
-  private lastReviewedEl: HTMLElement | null = null;
+  private calculationMeasureEl: HTMLDetailsElement | null = null;
+  private primaryEl: HTMLElement | null = null;
   private markButtonEl: HTMLButtonElement | null = null;
   private confirming = false;
   private opened = false;
@@ -55,20 +56,32 @@ export class ReviewDetailsPopover extends Component {
     );
     this.popoverEl = root;
 
-    const headerEl = root.createDiv({ cls: "review-details-header" });
-    this.headerEl = headerEl;
+    const primaryEl = root.createDiv({ cls: "review-details-primary" });
+    this.primaryEl = primaryEl;
+    primaryEl.createDiv({
+      cls: "review-details-title",
+      text: "Review Simple",
+    });
+    const headerEl = primaryEl.createDiv({ cls: "review-details-header" });
     const summaryEl = headerEl.createDiv({ cls: "review-details-summary" });
-    this.timingEl = summaryEl.createDiv({
+    const timingPresentation = getReviewTimingPresentation(this.details.timing);
+    const timingIconEl = summaryEl.createSpan({
+      cls: "review-details-timing-icon",
+      attr: { "aria-hidden": "true" },
+    });
+    summaryEl.addClass(`is-${timingPresentation.tone}`);
+    setIcon(timingIconEl, "clock-3");
+    summaryEl.createDiv({
       cls: "review-details-timing",
-      text: formatReviewTiming(this.details.timing, this.details.nextReviewDay),
+      text: timingPresentation.text,
     });
-    this.lastReviewedEl = summaryEl.createDiv({
-      cls: "review-details-last-reviewed",
-      text: this.details.lastReviewedDay
-        ? `Last reviewed ${this.details.lastReviewedDay}`
-        : "Never reviewed",
-    });
-    const actionsEl = headerEl.createDiv({ cls: "review-details-actions" });
+    if (this.details.lastReviewedDay) {
+      summaryEl.createDiv({
+        cls: "review-details-last-reviewed",
+        text: `Last reviewed ${this.details.lastReviewedDay}`,
+      });
+    }
+    const actionsEl = root.createDiv({ cls: "review-details-actions" });
     const markButton = actionsEl.createEl("button", {
       cls: "mod-cta",
       text: "Mark reviewed",
@@ -115,12 +128,18 @@ export class ReviewDetailsPopover extends Component {
         attr: { "aria-label": row.applied ? "Applied interval" : "" },
       });
     }
+    const calculationMeasureEl = calculationEl.cloneNode(
+      true
+    ) as HTMLDetailsElement;
+    calculationMeasureEl.open = true;
+    calculationMeasureEl.addClass("review-details-calculation-measure");
+    calculationMeasureEl.setAttribute("aria-hidden", "true");
+    root.append(calculationMeasureEl);
+    this.calculationMeasureEl = calculationMeasureEl;
 
     doc.body.append(root);
     this.position();
     root.focus({ preventScroll: true });
-
-    this.registerDomEvent(calculationEl, "toggle", () => this.position());
 
     this.registerDomEvent(doc, "pointerdown", (event) => {
       const target = event.target;
@@ -143,9 +162,8 @@ export class ReviewDetailsPopover extends Component {
     this.popoverEl?.remove();
     this.popoverEl = null;
     this.calculationEl = null;
-    this.headerEl = null;
-    this.timingEl = null;
-    this.lastReviewedEl = null;
+    this.calculationMeasureEl = null;
+    this.primaryEl = null;
     this.markButtonEl = null;
     if (
       this.restoreFocusOnUnload &&
@@ -207,13 +225,7 @@ export class ReviewDetailsPopover extends Component {
         : 16 + this.fontSizeAdjustment;
     root.removeClass("is-width-constrained");
     const rootStyle = viewWindow.getComputedStyle(root);
-    const headerStyle = this.headerEl
-      ? viewWindow.getComputedStyle(this.headerEl)
-      : null;
-    const summaryWidth = Math.max(
-      this.timingEl?.scrollWidth ?? 0,
-      this.lastReviewedEl?.scrollWidth ?? 0
-    );
+    const primaryWidth = this.primaryEl?.scrollWidth ?? 0;
     const buttonWidth = this.markButtonEl?.getBoundingClientRect().width ?? 0;
     const horizontalPadding =
       Number.parseFloat(rootStyle.paddingLeft) +
@@ -221,54 +233,17 @@ export class ReviewDetailsPopover extends Component {
     const horizontalBorder =
       Number.parseFloat(rootStyle.borderLeftWidth) +
       Number.parseFloat(rootStyle.borderRightWidth);
-    const headerGap = Number.parseFloat(headerStyle?.columnGap ?? "0");
-    const headerContentWidth =
-      summaryWidth + buttonWidth + headerGap;
-    let calculationContentWidth = 0;
-    if (this.calculationEl?.open) {
-      const calculationSummary =
-        this.calculationEl.querySelector<HTMLElement>("summary");
-      const mode =
-        this.calculationEl.querySelector<HTMLElement>(".review-details-mode");
-      calculationContentWidth = Math.max(
-        calculationSummary?.scrollWidth ?? 0,
-        mode?.scrollWidth ?? 0
-      );
-
-      const rows = Array.from(
-        this.calculationEl.querySelectorAll<HTMLElement>(
-          ".review-details-calculation-row"
-        )
-      );
-      for (const row of rows) {
-        const label = row.querySelector<HTMLElement>(
-          ".review-details-calculation-label"
-        );
-        const value = row.querySelector<HTMLElement>(
-          ".review-details-calculation-value"
-        );
-        const applied = row.querySelector<HTMLElement>(
-          ".review-details-calculation-applied"
-        );
-        const columnGap = Number.parseFloat(
-          viewWindow.getComputedStyle(row).columnGap
-        );
-        calculationContentWidth = Math.max(
-          calculationContentWidth,
-          calculateCalculationRowMinimumWidth({
-            positionWidth: rootFontSize,
-            labelWidth: label?.scrollWidth ?? 0,
-            valueWidth: value?.scrollWidth ?? 0,
-            appliedWidth: applied?.scrollWidth ?? 0,
-            columnGap,
-          })
-        );
-      }
-    }
-    const contentWidth = Math.max(
+    const headerContentWidth = calculatePopoverStackMinimumWidth({
+      itemWidths: [primaryWidth, buttonWidth],
+    });
+    const calculationContentWidth = this.calculateCalculationContentWidth(
+      viewWindow,
+      rootFontSize
+    );
+    const contentWidth = calculatePopoverContentWidth({
       headerContentWidth,
       calculationContentWidth
-    );
+    });
     const minimumRequiredWidthWithoutScrollbar =
       calculatePopoverMinimumRequiredWidth({
         contentWidth,
@@ -304,6 +279,54 @@ export class ReviewDetailsPopover extends Component {
     root.style.width = `${finalWidth}px`;
     root.toggleClass("is-width-constrained", finalWidth < minimumRequiredWidth);
     this.applyPosition(root, anchorRect, viewWindow);
+  }
+
+  private calculateCalculationContentWidth(
+    viewWindow: Window,
+    rootFontSize: number
+  ): number {
+    const calculationEl = this.calculationMeasureEl;
+    if (!calculationEl) return 0;
+    const calculationSummary = calculationEl.querySelector<HTMLElement>(
+      "summary"
+    );
+    const mode = calculationEl.querySelector<HTMLElement>(
+      ".review-details-mode"
+    );
+    let calculationContentWidth = Math.max(
+      calculationSummary?.scrollWidth ?? 0,
+      mode?.scrollWidth ?? 0
+    );
+    const rows = Array.from(
+      calculationEl.querySelectorAll<HTMLElement>(
+        ".review-details-calculation-row"
+      )
+    );
+    for (const row of rows) {
+      const label = row.querySelector<HTMLElement>(
+        ".review-details-calculation-label"
+      );
+      const value = row.querySelector<HTMLElement>(
+        ".review-details-calculation-value"
+      );
+      const applied = row.querySelector<HTMLElement>(
+        ".review-details-calculation-applied"
+      );
+      const columnGap = Number.parseFloat(
+        viewWindow.getComputedStyle(row).columnGap
+      );
+      calculationContentWidth = Math.max(
+        calculationContentWidth,
+        calculateCalculationRowMinimumWidth({
+          positionWidth: rootFontSize,
+          labelWidth: label?.scrollWidth ?? 0,
+          valueWidth: value?.scrollWidth ?? 0,
+          appliedWidth: applied?.scrollWidth ?? 0,
+          columnGap,
+        })
+      );
+    }
+    return calculationContentWidth;
   }
 
   private applyPosition(

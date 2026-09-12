@@ -13,6 +13,17 @@ export type ReviewTiming =
   | { kind: "due-today"; days: 0 }
   | { kind: "upcoming"; days: number };
 
+export type ReviewTimingTone =
+  | "not-reviewed"
+  | "due"
+  | "overdue"
+  | "reviewed";
+
+export interface ReviewTimingPresentation {
+  text: string;
+  tone: ReviewTimingTone;
+}
+
 export interface ReviewDetails {
   calculation: ReviewIntervalCalculation;
   lastReviewedDay: string | null;
@@ -47,25 +58,20 @@ function getCalendarDaysSince(day: string, now: Date): number {
   return Math.floor((currentDay - reviewedDay) / (24 * 60 * 60 * 1000));
 }
 
-export function formatReviewTiming(
-  timing: ReviewTiming,
-  nextReviewDay: string | null
-): string {
-  if (timing.kind === "never-reviewed") return "Due now";
-  if (!nextReviewDay) {
-    if (timing.kind === "due-today") return "Due today";
-    const unit = timing.days === 1 ? "day" : "days";
-    return timing.kind === "overdue"
-      ? `Due · ${timing.days} ${unit} overdue`
-      : `Due in ${timing.days} ${unit}`;
+export function getReviewTimingPresentation(
+  timing: ReviewTiming
+): ReviewTimingPresentation {
+  if (timing.kind === "never-reviewed") {
+    return { text: "Not reviewed", tone: "not-reviewed" };
   }
-  if (timing.kind === "due-today") return `Due ${nextReviewDay} · today`;
-  if (timing.kind === "overdue") {
-    const unit = timing.days === 1 ? "day" : "days";
-    return `${timing.days} ${unit} overdue`;
+  if (timing.kind === "due-today") {
+    return { text: "Due today", tone: "due" };
   }
   const unit = timing.days === 1 ? "day" : "days";
-  return `Due ${nextReviewDay} · in ${timing.days} ${unit}`;
+  if (timing.kind === "overdue") {
+    return { text: `Overdue · ${timing.days} ${unit}`, tone: "overdue" };
+  }
+  return { text: `Due in ${timing.days} ${unit}`, tone: "reviewed" };
 }
 
 export function formatCalculationMode(

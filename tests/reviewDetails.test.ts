@@ -3,7 +3,7 @@ import type { App, TFile } from "obsidian";
 import {
   formatCalculationMode,
   formatCalculationRows,
-  formatReviewTiming,
+  getReviewTimingPresentation,
   getReviewDetails,
 } from "../src/reviewDetails";
 import type { ReviewSettings } from "../src/settings";
@@ -102,11 +102,11 @@ describe("getReviewDetails", () => {
       timing: { kind: "upcoming", days: 99_999_982 },
     });
     expect(
-      details && formatReviewTiming(details.timing, details.nextReviewDay)
+      details && getReviewTimingPresentation(details.timing).text
     ).toBe("Due in 99999982 days");
   });
 
-  it("treats a note without a reviewed day as due now", () => {
+  it("identifies a note without a reviewed day as never reviewed", () => {
     const target = file("Projects/a.md");
 
     expect(
@@ -125,22 +125,41 @@ describe("getReviewDetails", () => {
 });
 
 describe("review details presentation", () => {
-  it("shows only an overdue count in one line", () => {
-    expect(
-      formatReviewTiming(
-        { kind: "overdue", days: 20 },
-        "2026-08-19"
-      )
-    ).toBe("20 days overdue");
+  it("maps every review timing state to one presentation and visual tone", () => {
+    expect(getReviewTimingPresentation({ kind: "never-reviewed", days: null })).toEqual({
+      text: "Not reviewed",
+      tone: "not-reviewed",
+    });
+    expect(getReviewTimingPresentation({ kind: "due-today", days: 0 })).toEqual({
+      text: "Due today",
+      tone: "due",
+    });
+    expect(getReviewTimingPresentation({ kind: "overdue", days: 2 })).toEqual({
+      text: "Overdue · 2 days",
+      tone: "overdue",
+    });
+    expect(getReviewTimingPresentation({ kind: "upcoming", days: 1 })).toEqual({
+      text: "Due in 1 day",
+      tone: "reviewed",
+    });
   });
 
-  it("formats the compact upcoming review status", () => {
+  it("puts the overdue label before the overdue duration", () => {
     expect(
-      formatReviewTiming(
-        { kind: "upcoming", days: 12 },
-        "2026-09-09"
-      )
-    ).toBe("Due 2026-09-09 · in 12 days");
+      getReviewTimingPresentation({ kind: "overdue", days: 20 }).text
+    ).toBe("Overdue · 20 days");
+  });
+
+  it("shows only the remaining days for an upcoming review", () => {
+    expect(
+      getReviewTimingPresentation({ kind: "upcoming", days: 12 }).text
+    ).toBe("Due in 12 days");
+  });
+
+  it("labels a note without a review date as not reviewed", () => {
+    expect(
+      getReviewTimingPresentation({ kind: "never-reviewed", days: null }).text
+    ).toBe("Not reviewed");
   });
 
   it("formats the configured folder mode separately from interval candidates", () => {

@@ -38,6 +38,15 @@ export interface PopoverMinimumRequiredWidthInput {
   verticalScrollbarGutter: number;
 }
 
+export interface PopoverStackMinimumWidthInput {
+  itemWidths: number[];
+}
+
+export interface PopoverContentWidthInput {
+  headerContentWidth: number;
+  calculationContentWidth: number;
+}
+
 export function calculateCalculationRowMinimumWidth({
   positionWidth,
   labelWidth,
@@ -66,6 +75,19 @@ export function calculatePopoverMinimumRequiredWidth({
       horizontalBorder +
       verticalScrollbarGutter
   );
+}
+
+export function calculatePopoverStackMinimumWidth({
+  itemWidths,
+}: PopoverStackMinimumWidthInput): number {
+  return Math.max(0, ...itemWidths);
+}
+
+export function calculatePopoverContentWidth({
+  headerContentWidth,
+  calculationContentWidth,
+}: PopoverContentWidthInput): number {
+  return Math.max(headerContentWidth, calculationContentWidth);
 }
 
 export function calculatePopoverWidth({
