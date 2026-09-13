@@ -1,6 +1,6 @@
 {
   "name": "review-simple",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Obsidian periodic review plugin",
   "license": "MIT",
   "main": "main.js",
