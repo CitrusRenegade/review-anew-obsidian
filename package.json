@@ -12,7 +12,8 @@
     "dev:reload": "node esbuild.config.mjs --watch-reload",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "build:reload": "npm run build && node esbuild.config.mjs --reload-only",
-    "check": "npm test && npm run build && npm run lint:obsidian",
+    "check": "npm test && npm run build && npm run lint:obsidian && npm run lint:css",
+    "lint:css": "stylelint styles.css --max-warnings 0",
     "lint:obsidian": "eslint src/ tests/",
     "test": "tsc --noEmit --skipLibCheck --project tsconfig.test.json && vitest run"
   },
@@ -23,6 +24,8 @@
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "latest",
+    "stylelint": "^17.15.0",
+    "stylelint-config-obsidianmd": "^0.1.0",
     "tslib": "2.4.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.6"

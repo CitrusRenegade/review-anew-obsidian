@@ -10,6 +10,7 @@
 
 .review-details-popover {
   --review-details-font-size-adjustment: 0px;
+
   position: fixed;
   z-index: var(--layer-popover);
   max-height: min(32rem, calc(100vh - 1rem));
@@ -52,6 +53,15 @@
   gap: 0.2rem 0.5rem;
 }
 
+.review-details-timing-icon {
+  --icon-size: 1.5em;
+
+  display: inline-flex;
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  align-self: start;
+}
+
 .review-details-summary.is-overdue .review-details-timing-icon,
 .review-details-summary.is-due .review-details-timing-icon {
   color: var(--text-error);
@@ -70,14 +80,6 @@
   color: var(--text-muted);
 }
 
-.review-details-timing-icon {
-  --icon-size: 1.5em;
-  display: inline-flex;
-  grid-row: 1 / span 2;
-  grid-column: 1;
-  align-self: start;
-}
-
 .review-details-summary.is-overdue .review-details-timing {
   color: var(--text-error);
 }
@@ -85,6 +87,21 @@
 .review-details-last-reviewed {
   grid-column: 2;
   margin: 0;
+  color: var(--text-muted);
+  font-size: calc(var(--font-ui-smaller) + var(--review-details-font-size-adjustment));
+  white-space: nowrap;
+}
+
+.review-details-calculation summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: calc(var(--font-ui-small) + var(--review-details-font-size-adjustment));
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+
+.review-details-mode {
+  margin: 0.65rem 0 0.45rem;
   color: var(--text-muted);
   font-size: calc(var(--font-ui-smaller) + var(--review-details-font-size-adjustment));
   white-space: nowrap;
@@ -114,21 +131,6 @@
   overflow: visible;
   visibility: hidden;
   pointer-events: none;
-}
-
-.review-details-calculation summary {
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: calc(var(--font-ui-small) + var(--review-details-font-size-adjustment));
-  font-weight: var(--font-medium);
-  white-space: nowrap;
-}
-
-.review-details-mode {
-  margin: 0.65rem 0 0.45rem;
-  color: var(--text-muted);
-  font-size: calc(var(--font-ui-smaller) + var(--review-details-font-size-adjustment));
-  white-space: nowrap;
 }
 
 .review-details-calculation-list {
@@ -204,6 +206,7 @@
 
 .review-due-counter-icon {
   --icon-size: 1em;
+
   display: inline-flex;
   align-items: center;
   line-height: 1;
