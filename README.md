@@ -25,7 +25,7 @@ Reread and refine your Obsidian notes on a recurring schedule. Last review date 
 
 You can start with folder rules; you do not need to add properties to every note first. Notes in review scope with no review date are due immediately.
 
-For unreleased builds from `master`, add `CitrusRenegade/review-simple-obsidian` to BRAT.
+For unreleased builds from `master`, add `CitrusRenegade/review-anew-obsidian` to BRAT.
 
 ## Review intervals
 
