@@ -27,6 +27,11 @@ You can start with folder rules; you do not need to add properties to every note
 
 For unreleased builds from `master`, add `CitrusRenegade/review-anew-obsidian` to BRAT.
 
+<picture>
+  <source srcset=".github/assets/review-demo.avif" type="image/avif">
+  <img src=".github/assets/review-demo.webp" alt="Review Anew review status demo">
+</picture>
+
 ## Review intervals
 
 Use the global interval as your default, folder rules for groups of notes, and frontmatter for individual exceptions.
