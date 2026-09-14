@@ -1,7 +1,7 @@
 {
   "id": "review-simple",
   "name": "Review Anew",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "minAppVersion": "1.13.0",
   "description": "Revisit notes on a schedule you define.",
   "author": "CitrusRenegade",
