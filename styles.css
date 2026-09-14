@@ -15,7 +15,6 @@
   z-index: var(--layer-popover);
   box-sizing: border-box;
   max-height: min(32rem, var(--review-details-available-height, calc(100vh - 1rem)));
-  scrollbar-gutter: stable;
   overflow: auto;
   padding: 0.625rem 0.875rem;
   border: 1px solid var(--background-modifier-border);
