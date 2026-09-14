@@ -13,7 +13,9 @@
 
   position: fixed;
   z-index: var(--layer-popover);
-  max-height: min(32rem, calc(100vh - 1rem));
+  box-sizing: border-box;
+  max-height: min(32rem, var(--review-details-available-height, calc(100vh - 1rem)));
+  scrollbar-gutter: stable;
   overflow: auto;
   padding: 0.625rem 0.875rem;
   border: 1px solid var(--background-modifier-border);
@@ -121,14 +123,13 @@
   padding-top: 0.65rem;
 }
 
-.review-details-calculation-measure {
+.review-details-popover-measure {
   position: fixed;
   top: -10000px;
   left: -10000px;
   width: max-content;
   max-width: none;
   max-height: none;
-  overflow: visible;
   visibility: hidden;
   pointer-events: none;
 }
@@ -226,3 +227,4 @@
 .review-hidden {
   display: none;
 }
+

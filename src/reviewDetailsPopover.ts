@@ -6,21 +6,14 @@ import {
   type ReviewDetails,
 } from "./reviewDetails";
 import {
-  calculateCalculationRowMinimumWidth,
-  calculatePopoverContentWidth,
-  calculatePopoverMinimumRequiredWidth,
   calculatePopoverPosition,
-  calculatePopoverStackMinimumWidth,
   calculatePopoverWidth,
 } from "./reviewDetailsPopoverPosition";
 import { runReviewDetailsAction } from "./reviewDetailsAction";
 
 export class ReviewDetailsPopover extends Component {
   private popoverEl: HTMLElement | null = null;
-  private calculationEl: HTMLDetailsElement | null = null;
-  private calculationMeasureEl: HTMLDetailsElement | null = null;
-  private primaryEl: HTMLElement | null = null;
-  private markButtonEl: HTMLButtonElement | null = null;
+  private measureEl: HTMLElement | null = null;
   private confirming = false;
   private opened = false;
   private previouslyFocusedEl: HTMLElement | null = null;
@@ -57,7 +50,6 @@ export class ReviewDetailsPopover extends Component {
     this.popoverEl = root;
 
     const primaryEl = root.createDiv({ cls: "review-details-primary" });
-    this.primaryEl = primaryEl;
     primaryEl.createDiv({
       cls: "review-details-title",
       text: "Review Anew",
@@ -86,7 +78,6 @@ export class ReviewDetailsPopover extends Component {
       cls: "mod-cta",
       text: "Mark reviewed",
     });
-    this.markButtonEl = markButton;
     this.registerDomEvent(markButton, "click", () => {
       void this.confirmReview(markButton);
     });
@@ -94,7 +85,6 @@ export class ReviewDetailsPopover extends Component {
     const calculationEl = root.createEl("details", {
       cls: "review-details-calculation",
     });
-    this.calculationEl = calculationEl;
     calculationEl.createEl("summary", { text: "How calculated" });
     calculationEl.createDiv({
       cls: "review-details-mode",
@@ -128,16 +118,17 @@ export class ReviewDetailsPopover extends Component {
         attr: { "aria-label": row.applied ? "Applied interval" : "" },
       });
     }
-    const calculationMeasureEl = calculationEl.cloneNode(
-      true
-    ) as HTMLDetailsElement;
-    calculationMeasureEl.open = true;
-    calculationMeasureEl.addClass("review-details-calculation-measure");
-    calculationMeasureEl.setAttribute("aria-hidden", "true");
-    root.append(calculationMeasureEl);
-    this.calculationMeasureEl = calculationMeasureEl;
+    // Measure an independent, unconstrained copy with the calculation expanded.
+    // Live children stretch to the assigned width and cannot define intrinsic size.
+    const measureEl = root.cloneNode(true) as HTMLElement;
+    measureEl.addClass("review-details-popover-measure");
+    measureEl.setAttribute("aria-hidden", "true");
+    measureEl.inert = true;
+    const measureCalculation = measureEl.querySelector("details");
+    if (measureCalculation) measureCalculation.open = true;
+    this.measureEl = measureEl;
 
-    doc.body.append(root);
+    doc.body.append(root, measureEl);
     this.position();
     root.focus({ preventScroll: true });
 
@@ -154,17 +145,15 @@ export class ReviewDetailsPopover extends Component {
     const viewWindow = doc.defaultView;
     if (viewWindow) {
       this.registerDomEvent(viewWindow, "resize", () => this.position());
-      this.registerDomEvent(viewWindow, "scroll", () => this.position(), true);
+      // The status-bar anchor is fixed; editor and popover scrolls do not move it.
     }
   }
 
   onunload(): void {
     this.popoverEl?.remove();
     this.popoverEl = null;
-    this.calculationEl = null;
-    this.calculationMeasureEl = null;
-    this.primaryEl = null;
-    this.markButtonEl = null;
+    this.measureEl?.remove();
+    this.measureEl = null;
     if (
       this.restoreFocusOnUnload &&
       this.previouslyFocusedEl?.isConnected
@@ -216,117 +205,16 @@ export class ReviewDetailsPopover extends Component {
       y: 0,
       toJSON: () => ({}),
     };
-    const parsedRootFontSize = Number.parseFloat(
-      viewWindow.getComputedStyle(this.popupDocument.documentElement).fontSize
+    const minimumRequiredWidth = Math.ceil(
+      this.measureEl?.getBoundingClientRect().width ?? 0
     );
-    const rootFontSize =
-      Number.isFinite(parsedRootFontSize) && parsedRootFontSize > 0
-        ? parsedRootFontSize + this.fontSizeAdjustment
-        : 16 + this.fontSizeAdjustment;
-    root.removeClass("is-width-constrained");
-    const rootStyle = viewWindow.getComputedStyle(root);
-    const primaryWidth = this.primaryEl?.scrollWidth ?? 0;
-    const buttonWidth = this.markButtonEl?.getBoundingClientRect().width ?? 0;
-    const horizontalPadding =
-      Number.parseFloat(rootStyle.paddingLeft) +
-      Number.parseFloat(rootStyle.paddingRight);
-    const horizontalBorder =
-      Number.parseFloat(rootStyle.borderLeftWidth) +
-      Number.parseFloat(rootStyle.borderRightWidth);
-    const headerContentWidth = calculatePopoverStackMinimumWidth({
-      itemWidths: [primaryWidth, buttonWidth],
-    });
-    const calculationContentWidth = this.calculateCalculationContentWidth(
-      viewWindow,
-      rootFontSize
-    );
-    const contentWidth = calculatePopoverContentWidth({
-      headerContentWidth,
-      calculationContentWidth
-    });
-    const minimumRequiredWidthWithoutScrollbar =
-      calculatePopoverMinimumRequiredWidth({
-        contentWidth,
-        horizontalPadding,
-        horizontalBorder,
-        verticalScrollbarGutter: 0,
-      });
-    const preliminaryWidth = calculatePopoverWidth({
-      viewportWidth: viewWindow.innerWidth,
-      minimumRequiredWidth: minimumRequiredWidthWithoutScrollbar,
-    });
-    root.style.width = `${preliminaryWidth}px`;
-    root.toggleClass(
-      "is-width-constrained",
-      preliminaryWidth < minimumRequiredWidthWithoutScrollbar
-    );
-    this.applyPosition(root, anchorRect, viewWindow);
-
-    const verticalScrollbarGutter = Math.max(
-      0,
-      root.offsetWidth - root.clientWidth - horizontalBorder
-    );
-    const minimumRequiredWidth = calculatePopoverMinimumRequiredWidth({
-      contentWidth,
-      horizontalPadding,
-      horizontalBorder,
-      verticalScrollbarGutter,
-    });
-    const finalWidth = calculatePopoverWidth({
+    const width = calculatePopoverWidth({
       viewportWidth: viewWindow.innerWidth,
       minimumRequiredWidth,
     });
-    root.style.width = `${finalWidth}px`;
-    root.toggleClass("is-width-constrained", finalWidth < minimumRequiredWidth);
+    root.style.width = `${width}px`;
+    root.toggleClass("is-width-constrained", width < minimumRequiredWidth);
     this.applyPosition(root, anchorRect, viewWindow);
-  }
-
-  private calculateCalculationContentWidth(
-    viewWindow: Window,
-    rootFontSize: number
-  ): number {
-    const calculationEl = this.calculationMeasureEl;
-    if (!calculationEl) return 0;
-    const calculationSummary = calculationEl.querySelector<HTMLElement>(
-      "summary"
-    );
-    const mode = calculationEl.querySelector<HTMLElement>(
-      ".review-details-mode"
-    );
-    let calculationContentWidth = Math.max(
-      calculationSummary?.scrollWidth ?? 0,
-      mode?.scrollWidth ?? 0
-    );
-    const rows = Array.from(
-      calculationEl.querySelectorAll<HTMLElement>(
-        ".review-details-calculation-row"
-      )
-    );
-    for (const row of rows) {
-      const label = row.querySelector<HTMLElement>(
-        ".review-details-calculation-label"
-      );
-      const value = row.querySelector<HTMLElement>(
-        ".review-details-calculation-value"
-      );
-      const applied = row.querySelector<HTMLElement>(
-        ".review-details-calculation-applied"
-      );
-      const columnGap = Number.parseFloat(
-        viewWindow.getComputedStyle(row).columnGap
-      );
-      calculationContentWidth = Math.max(
-        calculationContentWidth,
-        calculateCalculationRowMinimumWidth({
-          positionWidth: rootFontSize,
-          labelWidth: label?.scrollWidth ?? 0,
-          valueWidth: value?.scrollWidth ?? 0,
-          appliedWidth: applied?.scrollWidth ?? 0,
-          columnGap,
-        })
-      );
-    }
-    return calculationContentWidth;
   }
 
   private applyPosition(
@@ -344,6 +232,10 @@ export class ReviewDetailsPopover extends Component {
 
     root.style.left = `${position.left}px`;
     root.style.bottom = `${position.bottom}px`;
-    root.style.maxHeight = `${Math.max(0, viewWindow.innerHeight - position.bottom - 8)}px`;
+    root.style.setProperty(
+      "--review-details-available-height",
+      `${Math.max(0, viewWindow.innerHeight - position.bottom - 8)}px`
+    );
   }
 }
+

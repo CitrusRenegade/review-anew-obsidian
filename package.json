@@ -15,7 +15,8 @@
     "check": "npm test && npm run build && npm run lint:obsidian && npm run lint:css",
     "lint:css": "stylelint styles.css --max-warnings 0",
     "lint:obsidian": "eslint src/ tests/",
-    "test": "tsc --noEmit --skipLibCheck --project tsconfig.test.json && vitest run"
+    "test": "tsc --noEmit --skipLibCheck --project tsconfig.test.json && vitest run",
+    "test:browser": "node --test tests/browser/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
@@ -24,6 +25,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "latest",
+    "playwright": "^1.62.1",
     "stylelint": "^17.15.0",
     "stylelint-config-obsidianmd": "^0.1.0",
     "tslib": "2.4.0",
