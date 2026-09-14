@@ -64,6 +64,22 @@ async function mount(t, { width = 1200, height = 900, rows = 3, font = 0, boxSiz
 
 const rect = page => page.locator('[role="dialog"]:not([aria-hidden="true"])').boundingBox();
 
+test('short popover does not reserve space for a scrollbar it does not need', async t => {
+  const page = await mount(t);
+  const scrollbarWidth = await page
+    .locator('[role="dialog"]:not([aria-hidden="true"])')
+    .evaluate(el => {
+      const style = getComputedStyle(el);
+      const borders =
+        parseFloat(style.borderLeftWidth) +
+        parseFloat(style.borderRightWidth);
+
+      return el.offsetWidth - el.clientWidth - borders;
+    });
+
+  assert.equal(scrollbarWidth, 0);
+});
+
 for (const boxSizing of ['border-box', 'content-box']) {
   test(`repeated resize keeps the same width (${boxSizing})`, async t => {
     const page = await mount(t, { boxSizing });
