@@ -17,4 +17,12 @@ export default defineConfig([
       "obsidianmd/no-tfile-tfolder-cast": "off",
     },
   },
+  {
+    files: ["tests/browser/**/*.mjs"],
+    languageOptions: { globals: { process: "readonly" } },
+    rules: {
+      // The browser test runner executes in Node, outside the plugin bundle.
+      "obsidianmd/no-nodejs-modules": "off",
+    },
+  },
 ]);
