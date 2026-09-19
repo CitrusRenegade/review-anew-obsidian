@@ -2,7 +2,14 @@ export type RenamedReviewTargetKind = "file" | "folder" | "other";
 
 export function shouldRefreshActiveReviewAfterRename(
   targetKind: RenamedReviewTargetKind,
-  renamedFileIsActive: boolean
+  renamedFileIsActive: boolean,
+  activeFilePath?: string,
+  renamedFolderPath?: string
 ): boolean {
-  return targetKind === "folder" || (targetKind === "file" && renamedFileIsActive);
+  if (targetKind === "file") return renamedFileIsActive;
+
+  return targetKind === "folder" &&
+    activeFilePath !== undefined &&
+    renamedFolderPath !== undefined &&
+    activeFilePath.startsWith(`${renamedFolderPath}/`);
 }

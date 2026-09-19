@@ -31,8 +31,128 @@ export default class ReviewPlugin extends Plugin {
   private localDayRefreshTimeout: number | null = null;
   private currentLocalDay = formatLocalDate(new Date());
   private reviewMarkCoordinator = new ReviewMarkCoordinator<TFile, string>();
+  private pendingRenamedFiles = new Set<TFile>();
+  private pendingRenamedFolders = new Set<string>();
+  private pendingRenamedFolderFiles = new Map<string, Set<TFile>>();
+  private renameRefreshQueued = false;
+  private renameRefreshTimeout: number | null = null;
+
+  private isPendingRename(file?: TFile | null): boolean {
+    if (this.pendingRenamedFiles.size > 0 && !file) return true;
+    if (this.pendingRenamedFolders.size > 0 && !file) return true;
+    if (!file) return false;
+    if (this.pendingRenamedFiles.has(file)) return true;
+
+    for (const folderPath of this.pendingRenamedFolders) {
+      if (file.path.startsWith(`${folderPath}/`)) return true;
+    }
+    return false;
+  }
+
+  private updateReviewStatus(
+    file: TFile | null,
+    preserveReviewDetails = false
+  ): void {
+    if (file && this.isPendingRename(file)) {
+      this.statusBar?.update(null, preserveReviewDetails);
+      return;
+    }
+
+    this.statusBar?.update(file, preserveReviewDetails);
+  }
+
+  private scheduleRenameRefreshProbe(delay: number): void {
+    if (this.renameRefreshTimeout !== null) return;
+
+    this.renameRefreshTimeout = window.setTimeout(() => {
+      this.renameRefreshTimeout = null;
+      this.refreshPendingRenameState();
+    }, delay);
+  }
+
+  private queueRenameRefresh(file?: TFile, folderPath?: string): void {
+    if (file) this.pendingRenamedFiles.add(file);
+    if (folderPath) {
+      this.pendingRenamedFolders.add(folderPath);
+      this.pendingRenamedFolderFiles.set(
+        folderPath,
+        new Set(
+          this.app.vault.getMarkdownFiles()
+            .filter((file) => file.path.startsWith(`${folderPath}/`))
+        )
+      );
+    }
+    this.dueCounter?.setMetadataRefreshPending(this.isPendingRename());
+    if (this.renameRefreshQueued) return;
+
+    this.renameRefreshQueued = true;
+    queueMicrotask(() => {
+      this.renameRefreshQueued = false;
+      this.refreshPendingRenameState();
+    });
+    // A cache listener can itself queue a microtask during the rename event.
+    // Probe once after that event-loop turn as well.
+    this.scheduleRenameRefreshProbe(0);
+  }
+
+  private refreshPendingRenameState(): void {
+    if (!this.isPendingRename()) return;
+
+    for (const file of this.pendingRenamedFiles) {
+      // Vault rename and MetadataCache rekeying use separate listeners. Keep
+      if (!this.app.metadataCache.getFileCache(file)) continue;
+
+      this.pendingRenamedFiles.delete(file);
+      this.dueCounter?.invalidateFile(file);
+    }
+
+    for (const [folderPath, files] of this.pendingRenamedFolderFiles) {
+      if ([...files].some((file) => !this.app.metadataCache.getFileCache(file))) {
+        continue;
+      }
+
+      this.pendingRenamedFolders.delete(folderPath);
+      this.pendingRenamedFolderFiles.delete(folderPath);
+      this.dueCounter?.invalidateAll();
+    }
+
+    if (this.isPendingRename()) {
+      // There is no per-file cache-ready event for renames. Re-check only
+      // tracked renamed entries until MetadataCache provides their snapshot.
+      this.scheduleRenameRefreshProbe(50);
+      return;
+    }
+
+    this.dueCounter?.setMetadataRefreshPending(false);
+    const activeFile = this.app.workspace.getActiveFile();
+    this.updateReviewStatus(
+      activeFile,
+      activeFile
+        ? this.reviewMarkCoordinator.shouldPreserveDetails(
+          activeFile,
+          this.settings.frontmatterReviewedKey
+        )
+        : false
+    );
+    this.refreshDueCounter();
+  }
+
+  private completeRenameRefreshAfterRemoval(): void {
+    if (this.isPendingRename()) return;
+
+    this.dueCounter?.setMetadataRefreshPending(false);
+    const activeFile = this.app.workspace.getActiveFile();
+    const currentActiveFile = activeFile &&
+      this.app.vault.getAbstractFileByPath(activeFile.path) === activeFile
+      ? activeFile
+      : null;
+    this.updateReviewStatus(currentActiveFile);
+    this.refreshDueCounter();
+  }
 
   private async openRandomDue(): Promise<void> {
+    if (this.isPendingRename()) return;
+
     const file = pickRandomDue(
       this.app,
       this.settings,
@@ -53,7 +173,7 @@ export default class ReviewPlugin extends Plugin {
   }
 
   updateAll(preserveReviewDetails = false): void {
-    this.statusBar?.update(
+    this.updateReviewStatus(
       this.app.workspace.getActiveFile(),
       preserveReviewDetails
     );
@@ -70,6 +190,7 @@ export default class ReviewPlugin extends Plugin {
       window.clearTimeout(this.dueCounterRefreshTimeout);
       this.dueCounterRefreshTimeout = null;
     }
+    if (this.isPendingRename()) return;
     this.dueCounter?.update();
   }
 
@@ -83,7 +204,7 @@ export default class ReviewPlugin extends Plugin {
     }
     this.dueCounterRefreshTimeout = window.setTimeout(() => {
       this.dueCounterRefreshTimeout = null;
-      this.dueCounter?.update();
+      this.refreshDueCounter();
     }, 500);
   }
 
@@ -126,16 +247,22 @@ export default class ReviewPlugin extends Plugin {
     oldPath: string
   ): Promise<void> {
     if (file instanceof TFile) {
-      this.dueCounter?.renameFile(file, oldPath);
-      if (
-        shouldRefreshActiveReviewAfterRename(
-          "file",
-          this.app.workspace.getActiveFile() === file
-        )
-      ) {
-        this.statusBar?.update(file);
+      if (file.extension !== "md") {
+        if (oldPath.toLowerCase().endsWith(".md")) {
+          this.dueCounter?.removeFile(oldPath);
+          if (this.app.workspace.getActiveFile() === file) {
+            this.updateReviewStatus(file);
+          }
+          this.scheduleDueCounterRefresh();
+        }
+        return;
       }
-      this.scheduleDueCounterRefresh();
+
+      this.dueCounter?.renameFile(file, oldPath);
+      this.queueRenameRefresh(file);
+      if (this.app.workspace.getActiveFile() === file) {
+        this.updateReviewStatus(file);
+      }
       return;
     }
 
@@ -146,6 +273,14 @@ export default class ReviewPlugin extends Plugin {
       return;
     }
 
+    this.queueRenameRefresh(undefined, file.path);
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile && shouldRefreshActiveReviewAfterRename(
+      "folder", false, activeFile.path, file.path
+    )) {
+      this.updateReviewStatus(activeFile);
+    }
+
     const changed = migrateRenamedFolderReviewRules(
       this.settings,
       oldPath,
@@ -153,15 +288,9 @@ export default class ReviewPlugin extends Plugin {
     );
     if (changed) {
       await this.saveSettings();
-      this.updateAll();
       this.settingTab?.refresh();
-      return;
     }
 
-    if (shouldRefreshActiveReviewAfterRename("folder", false)) {
-      this.statusBar?.update(this.app.workspace.getActiveFile());
-    }
-    this.scheduleDueCounterRefresh();
   }
 
   updateRibbonIcon(): void {
@@ -314,13 +443,13 @@ export default class ReviewPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
-        this.statusBar?.update(this.app.workspace.getActiveFile());
+        this.updateReviewStatus(this.app.workspace.getActiveFile());
       })
     );
 
     this.registerEvent(
       this.app.workspace.on("file-open", (file) => {
-        this.statusBar?.update(file);
+        this.updateReviewStatus(file);
       })
     );
 
@@ -334,7 +463,7 @@ export default class ReviewPlugin extends Plugin {
       this.app.metadataCache.on("changed", (file: TFile) => {
         const active = this.app.workspace.getActiveFile();
         if (active === file) {
-          this.statusBar?.update(file,
+          this.updateReviewStatus(file,
             this.reviewMarkCoordinator.shouldPreserveDetails(
               file, this.settings.frontmatterReviewedKey
             )
@@ -342,6 +471,13 @@ export default class ReviewPlugin extends Plugin {
         }
         this.dueCounter?.invalidateFile(file);
         this.scheduleDueCounterRefresh();
+        this.refreshPendingRenameState();
+      })
+    );
+
+    this.registerEvent(
+      this.app.metadataCache.on("resolved", () => {
+        this.refreshPendingRenameState();
       })
     );
 
@@ -355,11 +491,32 @@ export default class ReviewPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
+        const hadPendingRename = this.isPendingRename();
         if (file instanceof TFile) {
+          this.pendingRenamedFiles.delete(file);
+          for (const [folderPath, files] of this.pendingRenamedFolderFiles) {
+            files.delete(file);
+            if (files.size === 0) {
+              this.pendingRenamedFolders.delete(folderPath);
+              this.pendingRenamedFolderFiles.delete(folderPath);
+            }
+          }
           this.dueCounter?.removeFile(file);
         } else {
+          if (file instanceof TFolder) {
+            for (const folderPath of this.pendingRenamedFolders) {
+              if (
+                folderPath === file.path ||
+                folderPath.startsWith(`${file.path}/`)
+              ) {
+                this.pendingRenamedFolders.delete(folderPath);
+                this.pendingRenamedFolderFiles.delete(folderPath);
+              }
+            }
+          }
           this.dueCounter?.invalidateAll();
         }
+        if (hadPendingRename) this.completeRenameRefreshAfterRemoval();
         this.scheduleDueCounterRefresh();
       })
     );
@@ -378,6 +535,13 @@ export default class ReviewPlugin extends Plugin {
         window.clearTimeout(this.localDayRefreshTimeout);
         this.localDayRefreshTimeout = null;
       }
+      if (this.renameRefreshTimeout !== null) {
+        window.clearTimeout(this.renameRefreshTimeout);
+        this.renameRefreshTimeout = null;
+      }
+      this.pendingRenamedFiles.clear();
+      this.pendingRenamedFolders.clear();
+      this.pendingRenamedFolderFiles.clear();
     });
 
     this.registerDomEvent(activeWindow, "focus", () =>

@@ -7,7 +7,22 @@ describe("shouldRefreshActiveReviewAfterRename", () => {
     expect(shouldRefreshActiveReviewAfterRename("file", false)).toBe(false);
   });
 
-  it("refreshes after a folder rename because the active note path may change", () => {
-    expect(shouldRefreshActiveReviewAfterRename("folder", false)).toBe(true);
+  it("refreshes only an active note moved with its renamed folder", () => {
+    expect(
+      shouldRefreshActiveReviewAfterRename(
+        "folder",
+        false,
+        "Archive/note.md",
+        "Archive"
+      )
+    ).toBe(true);
+    expect(
+      shouldRefreshActiveReviewAfterRename(
+        "folder",
+        false,
+        "Inbox/note.md",
+        "Archive"
+      )
+    ).toBe(false);
   });
 });

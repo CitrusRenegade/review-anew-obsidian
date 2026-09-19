@@ -151,6 +151,7 @@ export class DueCounterStatusBar {
   private getSettings: () => ReviewSettings;
   private countEl: HTMLElement;
   private cache: DueCounterCache;
+  private metadataRefreshPending = false;
 
   constructor(
     statusBarEl: HTMLElement,
@@ -171,6 +172,8 @@ export class DueCounterStatusBar {
   }
 
   update(): void {
+    if (this.metadataRefreshPending) return;
+
     const settings = this.getSettings();
     if (!settings.showDueCounter) {
       this.el.addClass("review-hidden");
@@ -188,6 +191,11 @@ export class DueCounterStatusBar {
 
   invalidateAll(): void {
     this.cache.invalidateAll();
+  }
+
+  setMetadataRefreshPending(pending: boolean): void {
+    this.metadataRefreshPending = pending;
+    this.el.toggleClass("review-hidden", pending);
   }
 
   invalidateFile(file: TFile): void {
