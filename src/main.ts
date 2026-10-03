@@ -99,7 +99,11 @@ export default class ReviewPlugin extends Plugin {
     if (!this.isPendingRename()) return;
 
     for (const file of this.pendingRenamedFiles) {
-      // Vault rename and MetadataCache rekeying use separate listeners. Keep
+      if (file.extension !== "md") {
+        this.pendingRenamedFiles.delete(file);
+        continue;
+      }
+      // Vault rename and MetadataCache rekeying use separate listeners.
       if (!this.app.metadataCache.getFileCache(file)) continue;
 
       this.pendingRenamedFiles.delete(file);
@@ -107,6 +111,9 @@ export default class ReviewPlugin extends Plugin {
     }
 
     for (const [folderPath, files] of this.pendingRenamedFolderFiles) {
+      for (const file of files) {
+        if (file.extension !== "md") files.delete(file);
+      }
       if ([...files].some((file) => !this.app.metadataCache.getFileCache(file))) {
         continue;
       }
@@ -250,6 +257,7 @@ export default class ReviewPlugin extends Plugin {
       if (file.extension !== "md") {
         if (oldPath.toLowerCase().endsWith(".md")) {
           this.dueCounter?.removeFile(oldPath);
+          this.refreshPendingRenameState();
           if (this.app.workspace.getActiveFile() === file) {
             this.updateReviewStatus(file);
           }

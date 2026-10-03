@@ -173,6 +173,32 @@ describe("review write and metadata lifecycle", () => {
     expect(s.fm.review_interval).toBe(7);
   });
 
+  it.each(["file", "folder"])("releases a pending %s rename when its note becomes an attachment", async (kind) => {
+    const s = await setup();
+    const remaining = new FileClass();
+    remaining.path = "remaining.md";
+    s.setMarkdownFiles([s.file, remaining]);
+    s.plugin.refreshReviewState();
+    s.setCacheAvailable(false);
+    s.file.path = "Archive/note.md";
+    if (kind === "file") s.rename("note.md");
+    else s.renameFolder(new FolderClass(), "Inbox");
+    await Promise.resolve();
+    expect(s.internal.dueCounter.pendingMetadataRefresh).toBe(true);
+
+    s.file.path = "Archive/note.txt";
+    s.file.extension = "txt";
+    s.setMarkdownFiles([remaining]);
+    s.rename("Archive/note.md");
+    vi.advanceTimersByTime(500);
+
+    expect(s.internal.dueCounter.pendingMetadataRefresh).toBe(false);
+    expect(s.internal.dueCounter.count).toBe(1);
+    expect(s.internal.statusBar.hidden).toBe(true);
+    await s.internal.openRandomDue();
+    expect(s.openFile).toHaveBeenCalledWith(remaining);
+  });
+
   it("uses the latest metadata when an external edit overtakes a pending mark", async () => {
     const s = await setup();
     const pending = s.internal.markReviewed(s.file);
