@@ -96,6 +96,46 @@ afterEach(() => {
 });
 
 describe("ReviewSettingTab declarative controls", () => {
+  it("rejects matching frontmatter keys in either control without saving", async () => {
+    const { tab, plugin } = createTab();
+    const definitions = tab.getSettingDefinitions() as Definition[];
+    const interval = definitionByName(definitions, "Frontmatter interval key");
+    const reviewed = definitionByName(definitions, "Frontmatter reviewed key");
+
+    expect(interval.control?.validate?.(" reviewed ")).toBe(
+      "Use different fields for the interval and review date."
+    );
+    expect(reviewed.control?.validate?.(" review_interval ")).toBe(
+      "Use different fields for the interval and review date."
+    );
+    await tab.setControlValue("frontmatterIntervalKey", " reviewed ");
+    await tab.setControlValue("frontmatterReviewedKey", " review_interval ");
+    expect(plugin.settings.frontmatterIntervalKey).toBe("review_interval");
+    expect(plugin.settings.frontmatterReviewedKey).toBe("reviewed");
+    expect(plugin.saveSettings).not.toHaveBeenCalled();
+    expect(plugin.refreshReviewState).not.toHaveBeenCalled();
+
+    await tab.setControlValue("frontmatterIntervalKey", "custom_interval");
+    expect(reviewed.control?.validate?.("custom_interval")).toBe(
+      "Use different fields for the interval and review date."
+    );
+    expect(reviewed.control?.validate?.("review_interval")).toBeUndefined();
+  });
+
+  it("preserves saved colliding fields and allows changing one to resolve them", async () => {
+    const { tab, plugin } = createTab();
+    plugin.settings = loadReviewSettings({
+      frontmatterIntervalKey: "custom",
+      frontmatterReviewedKey: "custom",
+    });
+    expect(plugin.settings.frontmatterIntervalKey).toBe("custom");
+    expect(plugin.settings.frontmatterReviewedKey).toBe("custom");
+    await tab.setControlValue("frontmatterReviewedKey", "review_date");
+    expect(plugin.settings.frontmatterReviewedKey).toBe("review_date");
+    expect(plugin.settings.frontmatterIntervalKey).toBe("custom");
+    expect(plugin.saveSettings).toHaveBeenCalledOnce();
+  });
+
   it("keeps the future review-details font adjustment within its slider range", () => {
     const defaultSettings = loadReviewSettings({}) as unknown as Record<string, unknown>;
     const largerSettings = loadReviewSettings({

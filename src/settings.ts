@@ -247,6 +247,20 @@ export class ReviewSettingTab extends PluginSettingTab {
     return this.plugin.settings[key as keyof ReviewSettings];
   }
 
+  private validateReviewFieldKey(
+    key: "frontmatterIntervalKey" | "frontmatterReviewedKey",
+    value: string
+  ): string | void {
+    const invalidKey = validateFrontmatterKey(value);
+    if (invalidKey) return invalidKey;
+    const otherKey = key === "frontmatterIntervalKey"
+      ? "frontmatterReviewedKey"
+      : "frontmatterIntervalKey";
+    if (value.trim() === this.plugin.settings[otherKey]) {
+      return "Use different fields for the interval and review date.";
+    }
+  }
+
   async setControlValue(key: string, value: unknown): Promise<void> {
     const settings = this.plugin.settings;
 
@@ -269,7 +283,7 @@ export class ReviewSettingTab extends PluginSettingTab {
       typeof value === "string"
     ) {
       const frontmatterKey = value.trim();
-      if (validateFrontmatterKey(frontmatterKey) !== undefined) return;
+      if (this.validateReviewFieldKey(key, frontmatterKey) !== undefined) return;
       settings[key] = frontmatterKey;
     } else {
       return;
@@ -478,7 +492,7 @@ export class ReviewSettingTab extends PluginSettingTab {
             control: {
               type: "text",
               key: "frontmatterIntervalKey",
-              validate: validateFrontmatterKey,
+              validate: (value: string) => this.validateReviewFieldKey("frontmatterIntervalKey", value),
             },
           },
           {
@@ -489,7 +503,7 @@ export class ReviewSettingTab extends PluginSettingTab {
             control: {
               type: "text",
               key: "frontmatterReviewedKey",
-              validate: validateFrontmatterKey,
+              validate: (value: string) => this.validateReviewFieldKey("frontmatterReviewedKey", value),
             },
           },
         ],

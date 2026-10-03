@@ -160,6 +160,19 @@ async function setup() {
 }
 
 describe("review write and metadata lifecycle", () => {
+  it("does not overwrite an interval when saved frontmatter keys collide", async () => {
+    const s = await setup();
+    s.plugin.settings.frontmatterReviewedKey = "review_interval";
+    s.fm.review_interval = 7;
+
+    const result = s.internal.markReviewed(s.file);
+    if (s.write.mock.calls.length > 0) s.finish();
+
+    expect(await result).toBe(false);
+    expect(s.write).not.toHaveBeenCalled();
+    expect(s.fm.review_interval).toBe(7);
+  });
+
   it("uses the latest metadata when an external edit overtakes a pending mark", async () => {
     const s = await setup();
     const pending = s.internal.markReviewed(s.file);

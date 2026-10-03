@@ -315,6 +315,10 @@ export default class ReviewPlugin extends Plugin {
     if (!preserveReviewDetails) this.statusBar?.closeDetails(false);
 
     const reviewedKey = this.settings.frontmatterReviewedKey;
+    if (reviewedKey === this.settings.frontmatterIntervalKey) {
+      new Notice("Use different frontmatter keys for the review date and interval in settings");
+      return Promise.resolve(false);
+    }
     return this.reviewMarkCoordinator.run(
       file,
       reviewedKey,
