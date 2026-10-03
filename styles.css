@@ -186,10 +186,44 @@
 }
 
 .review-details-calculation-row.has-folder-path {
-  grid-template-columns: calc(1rem + var(--review-details-font-size-adjustment)) minmax(0, max-content) minmax(0, 1fr) max-content max-content;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.has-folder-path .review-details-calculation-position {
+  flex: 0 0 calc(1rem + var(--review-details-font-size-adjustment));
+}
+
+.review-details-calculation-row.has-folder-path .review-details-calculation-label {
+  flex: 0 1 auto;
+}
+
+.review-details-folder-value {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.review-details-folder-path-box {
+  position: relative;
+  flex: 1 1 0;
+  min-width: min-content;
+}
+
+.review-details-folder-minimum {
+  display: block;
+  visibility: hidden;
+  white-space: nowrap;
 }
 
 .review-details-folder-path {
+  position: absolute;
+  inset: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -197,28 +231,23 @@
 }
 
 .review-details-folder-days {
-  white-space: pre;
-}
-
-.review-details-calculation-row.has-folder-path.is-path-stacked {
-  grid-template-columns: calc(1rem + var(--review-details-font-size-adjustment)) minmax(0, 1fr) max-content;
-}
-
-.is-path-stacked .review-details-folder-path {
-  grid-row: 2;
-  grid-column: 2 / -1;
-}
-
-.is-path-stacked .review-details-folder-days {
-  grid-row: 3;
-  grid-column: 2 / -1;
+  min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
 }
 
-.is-path-stacked .review-details-calculation-applied {
-  grid-row: 1;
-  grid-column: 3;
+.review-details-folder-suffix {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.review-details-folder-suffix .review-details-calculation-applied {
+  flex: none;
 }
 
 .review-details-actions {

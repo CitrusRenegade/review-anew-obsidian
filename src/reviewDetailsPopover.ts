@@ -18,6 +18,36 @@ function pathCharacters(value: string): string[] {
   return Array.from(pathSegmenter.segment(value), (part) => part.segment);
 }
 
+// Null means this slot cannot show one complete name character and its marker.
+function fitPathText(fullPath: string, fits: (value: string) => boolean): string | null {
+  if (fits(fullPath)) return fullPath;
+  const slash = fullPath.lastIndexOf("/");
+  const basename = fullPath.slice(slash + 1);
+  const marker = slash < 0 ? "…" : "…/";
+  if (!fits(`${marker}${basename}`)) {
+    const nameMarker = slash < 0 ? "…" : "…/…";
+    const tail = pathCharacters(basename);
+    let low = 0;
+    let high = tail.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (fits(`${nameMarker}${tail.slice(tail.length - mid).join("")}`)) low = mid;
+      else high = mid - 1;
+    }
+    return low > 0 ? `${nameMarker}${tail.slice(tail.length - low).join("")}` : null;
+  }
+  if (slash < 0) return `${marker}${basename}`;
+  const prefix = pathCharacters(fullPath.slice(0, slash));
+  let low = 0;
+  let high = prefix.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (fits(`${prefix.slice(0, mid).join("")}…/${basename}`)) low = mid;
+    else high = mid - 1;
+  }
+  return `${prefix.slice(0, low).join("")}…/${basename}`;
+}
+
 export class ReviewDetailsPopover extends Component {
   private popoverEl: HTMLElement | null = null;
   private measureEl: HTMLElement | null = null;
@@ -118,14 +148,20 @@ export class ReviewDetailsPopover extends Component {
         cls: "review-details-calculation-label",
         text: row.label,
       });
+      let appliedParent: HTMLElement = rowEl;
       if (row.folder !== undefined) {
         rowEl.addClass("has-folder-path");
-        rowEl.createSpan({
+        const group = rowEl.createSpan({ cls: "review-details-folder-value" });
+        const pathBox = group.createSpan({ cls: "review-details-folder-path-box" });
+        pathBox.createSpan({ cls: "review-details-folder-minimum", text: row.folder, attr: { "aria-hidden": "true" } });
+        pathBox.createSpan({
           cls: "review-details-folder-path",
           text: row.folder,
           attr: { title: row.folder, "aria-description": row.folder },
         });
-        rowEl.createSpan({
+        const suffix = group.createSpan({ cls: "review-details-folder-suffix" });
+        appliedParent = suffix;
+        suffix.createSpan({
           cls: "review-details-folder-days",
           text: ` · ${row.days} days`,
         });
@@ -135,7 +171,7 @@ export class ReviewDetailsPopover extends Component {
           text: row.value,
         });
       }
-      rowEl.createSpan({
+      appliedParent.createSpan({
         cls: "review-details-calculation-applied",
         text: row.applied ? "✓" : "",
         attr: { "aria-label": row.applied ? "Applied interval" : "" },
@@ -264,54 +300,35 @@ export class ReviewDetailsPopover extends Component {
   }
 
   private fitFolderPaths(root: HTMLElement): void {
-    for (const el of Array.from(root.querySelectorAll<HTMLElement>(".review-details-folder-path"))) {
+    const paths = Array.from(root.querySelectorAll<HTMLElement>(".review-details-folder-path"));
+    const measurementPaths = this.measureEl?.querySelectorAll<HTMLElement>(".review-details-folder-path");
+    for (const [index, el] of paths.entries()) {
       const fullPath = el.getAttribute("title") ?? "";
       el.textContent = fullPath;
-      if (!el.getClientRects().length) continue;
-      const row = el.closest<HTMLElement>(".review-details-calculation-row");
-      row?.removeClass("is-path-stacked");
-      const fontSize = parseFloat(this.popupDocument.defaultView!.getComputedStyle(el).fontSize);
-      row?.toggleClass("is-path-stacked", el.getBoundingClientRect().width < fontSize * 6);
       const textRange = el.ownerDocument.createRange();
-      const fits = (): boolean => {
+      const fits = (value: string): boolean => {
+        el.textContent = value;
         textRange.selectNodeContents(el);
         // Integer scrollWidth/clientWidth can round down overflowing text.
-        return textRange.getBoundingClientRect().width <= el.getBoundingClientRect().width - 1;
+        return textRange.getBoundingClientRect().width <= el.getBoundingClientRect().width;
       };
-      if (fits()) continue;
+      // Supply intrinsic text, not a guessed em threshold, for CSS flex wrapping.
       const slash = fullPath.lastIndexOf("/");
       const basename = fullPath.slice(slash + 1);
-      const marker = slash < 0 ? "…" : "…/";
-      el.textContent = `${marker}${basename}`;
-      if (!fits()) {
-        const shortenedNameMarker = slash < 0 ? "…" : "…/…";
-        const tail = pathCharacters(basename);
-        let low = 0;
-        let high = tail.length;
-        while (low < high) {
-          const mid = Math.ceil((low + high) / 2);
-          el.textContent = `${shortenedNameMarker}${tail.slice(tail.length - mid).join("")}`;
-          if (fits()) low = mid;
-          else high = mid - 1;
-        }
-        el.textContent = `${shortenedNameMarker}${tail.slice(tail.length - low).join("")}`;
-        if (!fits()) {
-          el.textContent = "…";
-          if (!fits()) el.textContent = "";
-        }
-        continue;
-      }
-      // Keep complete user-perceived characters, including compound emoji.
-      const prefix = pathCharacters(fullPath.slice(0, slash));
-      let low = 0;
-      let high = prefix.length;
-      while (low < high) {
-        const mid = Math.ceil((low + high) / 2);
-        el.textContent = `${prefix.slice(0, mid).join("")}…/${basename}`;
-        if (fits()) low = mid;
-        else high = mid - 1;
-      }
-      el.textContent = `${prefix.slice(0, low).join("")}…/${basename}`;
+      const tail = pathCharacters(basename).at(-1) ?? "";
+      const shortest = `${slash < 0 ? "…" : "…/…"}${tail}`;
+      const measureText = (value: string): number => {
+        const measurement = measurementPaths?.[index] ?? el;
+        measurement.textContent = value;
+        textRange.selectNodeContents(measurement);
+        return textRange.getBoundingClientRect().width;
+      };
+      const minimum = el.parentElement?.querySelector(".review-details-folder-minimum");
+      if (minimum) minimum.textContent = measureText(fullPath) <= measureText(shortest) ? fullPath : shortest;
+      if (measurementPaths?.[index]) measurementPaths[index].textContent = fullPath;
+      if (!el.getClientRects().length) continue;
+      const fitted = fitPathText(fullPath, fits);
+      el.textContent = fitted ?? (fits("…") ? "…" : "");
     }
   }
 
