@@ -38,6 +38,8 @@ export interface ReviewCalculationRow {
   label: string;
   value: string;
   applied: boolean;
+  folder?: string;
+  days?: number;
 }
 
 export function getReviewTimingPresentation(
@@ -81,6 +83,8 @@ export function formatCalculationRows(
         position: index + 1,
         label: "Folder interval",
         value: `${candidate.folder} · ${candidate.days} days`,
+        folder: candidate.folder,
+        days: candidate.days,
         applied: candidate.applied,
       };
     }

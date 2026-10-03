@@ -29,8 +29,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-async function mount(t, { width = 1200, height = 900, rows = 3, font = 0, boxSizing = 'border-box' } = {}) {
-  const page = await browser.newPage({ viewport: { width, height } });
+async function mount(t, { width = 1200, height = 900, rows = 3, font = 0, boxSizing = 'border-box', folders, deviceScaleFactor = 1 } = {}) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor });
   t.after(() => page.close());
   await page.setContent(`<style>
     :root { font-size: 16px; font-family: Arial; --font-ui-small: 14px;
@@ -43,22 +43,22 @@ async function mount(t, { width = 1200, height = 900, rows = 3, font = 0, boxSiz
   </style><div id="editor"><div id="document"></div></div><button id="anchor">Review</button>`);
   await page.addStyleTag({ content: css });
   await page.addScriptTag({ content: script });
-  await page.evaluate(({ rows, font }) => {
+  await page.evaluate(({ rows, font, folders }) => {
     const anchor = document.querySelector('#anchor');
     anchor.focus();
     const details = {
       lastReviewedDay: '2026-09-10', nextReviewDay: '2026-09-12',
       timing: { kind: 'overdue', days: 59 },
       calculation: { mode: 'excluded', effectiveIntervalDays: 2,
-        candidates: Array.from({ length: rows }, (_, i) => ({
-          kind: 'folder', folder: `Projects/Research ${i}`, days: 2, applied: i === 0,
+        candidates: Array.from({ length: folders?.length ?? rows }, (_, i) => ({
+          kind: 'folder', folder: folders?.[i] ?? `Projects/Research ${i}`, days: 2, applied: i === 0,
         })),
       },
     };
     window.popover = new window.ReviewDetailsPopover(document, anchor, details, font,
       async () => true, () => {});
     window.popover.load();
-  }, { rows, font });
+  }, { rows, font, folders });
   return page;
 }
 
@@ -78,6 +78,152 @@ test('short popover does not reserve space for a scrollbar it does not need', as
     });
 
   assert.equal(scrollbarWidth, 0);
+});
+
+const longFolders = [
+  `05-System/${'Long parent folder '.repeat(8)}/Scripts/Downloaded`,
+  `${'VeryLongFirstFolder'.repeat(8)}/${'VeryLongSecondFolder'.repeat(8)}`,
+  `Projects/${'VeryLongBasename'.repeat(20)}-distinctive-ending.md`,
+];
+
+test('DPI scaling preserves logical geometry and hover targets retain their own titles', async t => {
+  let reference;
+  for (const deviceScaleFactor of [1, 1.25, 1.5, 2, 3]) {
+    const page = await mount(t, { folders: longFolders, deviceScaleFactor });
+    const dialog = page.locator('[role="dialog"]:not([aria-hidden="true"])');
+    await dialog.locator('summary').click();
+    const bounds = await rect(page);
+    if (reference) assert.deepEqual(bounds, reference);
+    else reference = bounds;
+    const paths = dialog.locator('.review-details-folder-path');
+    for (const index of [1, 0, 2, 1]) {
+      await paths.nth(index).hover();
+      const hovered = await page.evaluate(() => {
+        const el = document.querySelector('.review-details-folder-path:hover');
+        return { title: el?.getAttribute('title'), label: el?.getAttribute('aria-label') };
+      });
+      assert.equal(hovered.title, longFolders[index]);
+      assert.equal(hovered.label, null);
+    }
+  }
+});
+
+for (const boxSizing of ['border-box', 'content-box']) {
+  for (const font of [-2, 0, 2]) {
+    test(`long folder paths stay bounded across viewports (${boxSizing}, font ${font})`, async t => {
+      const page = await mount(t, { folders: longFolders, font, boxSizing });
+      const dialog = page.locator('[role="dialog"]:not([aria-hidden="true"])');
+      await dialog.locator('summary').click();
+      const initial = await rect(page);
+      const maxWidth = 25 * (14 + font);
+      assert.ok(initial.width <= maxWidth, `long path expanded popover to ${initial.width}px`);
+      const paths = dialog.locator('.review-details-folder-path');
+      assert.equal(await paths.count(), longFolders.length);
+      for (let i = 0; i < longFolders.length; i++) {
+        assert.equal(await paths.nth(i).getAttribute('title'), longFolders[i]);
+        assert.equal(await paths.nth(i).getAttribute('aria-description'), longFolders[i]);
+        assert.equal(await paths.nth(i).getAttribute('aria-label'), null);
+      }
+      const abbreviated = await paths.first().textContent();
+      assert.match(abbreviated, /…/);
+      assert.ok(abbreviated.endsWith('/Downloaded'), abbreviated);
+      const ultraLong = await paths.last().evaluate(el => ({
+        text: el.textContent, overflow: el.scrollWidth - el.clientWidth,
+        ellipsis: getComputedStyle(el).textOverflow,
+      }));
+      assert.ok(ultraLong.text.includes('…') || (ultraLong.overflow > 1 && ultraLong.ellipsis === 'ellipsis'),
+        'ultra-long basename must be abbreviated or visually ellipsized');
+      assert.ok(ultraLong.text.endsWith('.md'), ultraLong.text);
+      assert.ok(ultraLong.text.startsWith('…/…'), ultraLong.text);
+      assert.ok(longFolders.at(-1).endsWith(ultraLong.text.replace(/^…\/…/, '')), ultraLong.text);
+      assert.ok(ultraLong.overflow <= 1);
+      for (const width of [480, 320, 240, 1200]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+        const bounds = await rect(page);
+        assert.ok(bounds.width <= Math.min(maxWidth, width - 16));
+        assert.ok(bounds.x >= 8 && bounds.x + bounds.width <= width - 8);
+        const geometry = await dialog.evaluate(el => {
+          const box = el.getBoundingClientRect();
+          return {
+            overflow: el.scrollWidth - el.clientWidth,
+            suffixes: Array.from(el.querySelectorAll('.review-details-folder-days, .review-details-calculation-applied')).map(child => {
+              const rect = child.getBoundingClientRect();
+              return { left: rect.left, right: rect.right, text: child.textContent,
+                overflow: child.scrollWidth - child.clientWidth };
+            }),
+            left: box.left, right: box.right,
+          };
+        });
+        assert.ok(geometry.overflow <= 1, `${width}px viewport overflow: ${geometry.overflow}`);
+        assert.equal(geometry.suffixes.filter(item => item.text.includes('2 days')).length, longFolders.length);
+        assert.equal(geometry.suffixes.filter(item => item.text === '✓').length, 1);
+        for (const suffix of geometry.suffixes) {
+          assert.ok(suffix.left >= geometry.left && suffix.right <= geometry.right);
+          assert.ok(suffix.overflow <= 1, `clipped suffix ${suffix.text}`);
+        }
+      }
+      assert.deepEqual(await rect(page), initial);
+    });
+  }
+}
+
+test('short folder paths remain complete and restore after a narrow viewport', async t => {
+  const folder = 'Projects/Notes';
+  const page = await mount(t, { folders: [folder] });
+  const dialog = page.locator('[role="dialog"]:not([aria-hidden="true"])');
+  await dialog.locator('summary').click();
+  const path = dialog.locator('.review-details-folder-path');
+  assert.equal(await path.count(), 1);
+  assert.equal(await path.textContent(), folder);
+  const initial = await rect(page);
+  await page.setViewportSize({ width: 240, height: 900 });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  assert.equal(await path.textContent(), folder);
+  assert.deepEqual(await rect(page), initial);
+});
+
+test('changing theme font while open refits paths without a window resize', async t => {
+  const page = await mount(t, { folders: longFolders });
+  const dialog = page.locator('[role="dialog"]:not([aria-hidden="true"])');
+  await dialog.locator('summary').click();
+  await page.evaluate(() => new Promise(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))));
+  for (const [small, smaller, family] of [[22, 20, 'monospace'], [14, 12, 'Arial']]) {
+    await page.evaluate(({ small, smaller, family }) => {
+      const style = document.documentElement.style;
+      style.setProperty('--font-ui-small', `${small}px`);
+      style.setProperty('--font-ui-smaller', `${smaller}px`);
+      style.fontFamily = family;
+    }, { small, smaller, family });
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.review-details-popover:not([aria-hidden]) .review-details-folder-path')).every(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().width <= el.getBoundingClientRect().width;
+    }), null, { timeout: 1500 });
+    assert.ok((await dialog.locator('.review-details-folder-path').first().textContent()).endsWith('Downloaded'));
+  }
+});
+
+test('a newly reserved scrollbar gutter refits paths before hiding their endings', async t => {
+  const page = await mount(t, { folders: longFolders });
+  const dialog = page.locator('[role="dialog"]:not([aria-hidden="true"])');
+  await dialog.locator('summary').click();
+  await page.evaluate(() => new Promise(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))));
+  await page.addStyleTag({ content: '.review-details-popover:not([aria-hidden]) { scrollbar-gutter: stable; }' });
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('.review-details-popover:not([aria-hidden]) .review-details-folder-path')).every(el => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return range.getBoundingClientRect().width <= el.getBoundingClientRect().width;
+  }), null, { timeout: 1500 });
+  const geometry = await dialog.evaluate(el => ({
+    scrollbar: el.offsetWidth - el.clientWidth - 2,
+    overflow: el.scrollWidth - el.clientWidth,
+  }));
+  assert.ok(geometry.scrollbar > 0, 'test must reserve real scrollbar width');
+  assert.ok(geometry.overflow <= 1);
+  assert.ok((await dialog.locator('.review-details-folder-path').first().textContent()).endsWith('/Downloaded'));
 });
 
 for (const boxSizing of ['border-box', 'content-box']) {

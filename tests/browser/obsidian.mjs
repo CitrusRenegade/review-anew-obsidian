@@ -2,6 +2,7 @@
 export class Component {
   cleanups = [];
   load() { this.onload(); }
+  register(callback) { this.cleanups.push(callback); }
   registerDomEvent(target, type, callback, options) {
     target.addEventListener(type, callback, options);
     this.cleanups.push(() => target.removeEventListener(type, callback, options));

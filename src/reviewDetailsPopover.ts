@@ -11,6 +11,13 @@ import {
 } from "./reviewDetailsPopoverPosition";
 import { runReviewDetailsAction } from "./reviewDetailsAction";
 
+let nextPopoverTitleId = 0;
+const pathSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+function pathCharacters(value: string): string[] {
+  return Array.from(pathSegmenter.segment(value), (part) => part.segment);
+}
+
 export class ReviewDetailsPopover extends Component {
   private popoverEl: HTMLElement | null = null;
   private measureEl: HTMLElement | null = null;
@@ -41,7 +48,8 @@ export class ReviewDetailsPopover extends Component {
     const root = popupWindow.createDiv();
     root.addClass("review-details-popover");
     root.setAttribute("role", "dialog");
-    root.setAttribute("aria-label", "Review details");
+    const titleId = `review-details-title-${++nextPopoverTitleId}`;
+    root.setAttribute("aria-labelledby", titleId);
     root.tabIndex = -1;
     root.style.setProperty(
       "--review-details-font-size-adjustment",
@@ -53,6 +61,7 @@ export class ReviewDetailsPopover extends Component {
     primaryEl.createDiv({
       cls: "review-details-title",
       text: "Review Anew",
+      attr: { id: titleId },
     });
     const headerEl = primaryEl.createDiv({ cls: "review-details-header" });
     const summaryEl = headerEl.createDiv({ cls: "review-details-summary" });
@@ -86,6 +95,7 @@ export class ReviewDetailsPopover extends Component {
       cls: "review-details-calculation",
     });
     calculationEl.createEl("summary", { text: "How calculated" });
+    this.registerDomEvent(calculationEl, "toggle", () => this.position());
     calculationEl.createDiv({
       cls: "review-details-mode",
       text: formatCalculationMode(this.details.calculation.mode),
@@ -108,10 +118,23 @@ export class ReviewDetailsPopover extends Component {
         cls: "review-details-calculation-label",
         text: row.label,
       });
-      rowEl.createSpan({
-        cls: "review-details-calculation-value",
-        text: row.value,
-      });
+      if (row.folder !== undefined) {
+        rowEl.addClass("has-folder-path");
+        rowEl.createSpan({
+          cls: "review-details-folder-path",
+          text: row.folder,
+          attr: { title: row.folder, "aria-description": row.folder },
+        });
+        rowEl.createSpan({
+          cls: "review-details-folder-days",
+          text: ` · ${row.days} days`,
+        });
+      } else {
+        rowEl.createSpan({
+          cls: "review-details-calculation-value",
+          text: row.value,
+        });
+      }
       rowEl.createSpan({
         cls: "review-details-calculation-applied",
         text: row.applied ? "✓" : "",
@@ -123,6 +146,8 @@ export class ReviewDetailsPopover extends Component {
     const measureEl = root.cloneNode(true) as HTMLElement;
     measureEl.addClass("review-details-popover-measure");
     measureEl.setAttribute("aria-hidden", "true");
+    measureEl.removeAttribute("aria-labelledby");
+    measureEl.querySelector(`#${titleId}`)?.removeAttribute("id");
     measureEl.inert = true;
     const measureCalculation = measureEl.querySelector("details");
     if (measureCalculation) measureCalculation.open = true;
@@ -145,6 +170,26 @@ export class ReviewDetailsPopover extends Component {
     const viewWindow = doc.defaultView;
     if (viewWindow) {
       this.registerDomEvent(viewWindow, "resize", () => this.position());
+      let pendingFrame: number | null = null;
+      const schedulePosition = (): void => {
+        if (pendingFrame !== null || !this.opened) return;
+        pendingFrame = viewWindow.requestAnimationFrame(() => {
+          pendingFrame = null;
+          if (this.opened) this.position();
+        });
+      };
+      const observer = new viewWindow.ResizeObserver(schedulePosition);
+      observer.observe(root);
+      observer.observe(measureEl);
+      for (const path of Array.from(root.querySelectorAll(".review-details-folder-path"))) {
+        observer.observe(path);
+      }
+      doc.fonts.addEventListener("loadingdone", schedulePosition);
+      this.register(() => {
+        observer.disconnect();
+        doc.fonts.removeEventListener("loadingdone", schedulePosition);
+        if (pendingFrame !== null) viewWindow.cancelAnimationFrame(pendingFrame);
+      });
       // The status-bar anchor is fixed; editor and popover scrolls do not move it.
     }
   }
@@ -207,14 +252,67 @@ export class ReviewDetailsPopover extends Component {
     };
     const minimumRequiredWidth = Math.ceil(
       this.measureEl?.getBoundingClientRect().width ?? 0
-    );
+    ) + 2;
     const width = calculatePopoverWidth({
       viewportWidth: viewWindow.innerWidth,
       minimumRequiredWidth,
     });
     root.style.width = `${width}px`;
-    root.toggleClass("is-width-constrained", width < minimumRequiredWidth);
+    root.toggleClass("is-width-constrained", root.getBoundingClientRect().width < minimumRequiredWidth);
     this.applyPosition(root, anchorRect, viewWindow);
+    this.fitFolderPaths(root);
+  }
+
+  private fitFolderPaths(root: HTMLElement): void {
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>(".review-details-folder-path"))) {
+      const fullPath = el.getAttribute("title") ?? "";
+      el.textContent = fullPath;
+      if (!el.getClientRects().length) continue;
+      const row = el.closest<HTMLElement>(".review-details-calculation-row");
+      row?.removeClass("is-path-stacked");
+      const fontSize = parseFloat(this.popupDocument.defaultView!.getComputedStyle(el).fontSize);
+      row?.toggleClass("is-path-stacked", el.getBoundingClientRect().width < fontSize * 6);
+      const textRange = el.ownerDocument.createRange();
+      const fits = (): boolean => {
+        textRange.selectNodeContents(el);
+        // Integer scrollWidth/clientWidth can round down overflowing text.
+        return textRange.getBoundingClientRect().width <= el.getBoundingClientRect().width - 1;
+      };
+      if (fits()) continue;
+      const slash = fullPath.lastIndexOf("/");
+      const basename = fullPath.slice(slash + 1);
+      const marker = slash < 0 ? "…" : "…/";
+      el.textContent = `${marker}${basename}`;
+      if (!fits()) {
+        const shortenedNameMarker = slash < 0 ? "…" : "…/…";
+        const tail = pathCharacters(basename);
+        let low = 0;
+        let high = tail.length;
+        while (low < high) {
+          const mid = Math.ceil((low + high) / 2);
+          el.textContent = `${shortenedNameMarker}${tail.slice(tail.length - mid).join("")}`;
+          if (fits()) low = mid;
+          else high = mid - 1;
+        }
+        el.textContent = `${shortenedNameMarker}${tail.slice(tail.length - low).join("")}`;
+        if (!fits()) {
+          el.textContent = "…";
+          if (!fits()) el.textContent = "";
+        }
+        continue;
+      }
+      // Keep complete user-perceived characters, including compound emoji.
+      const prefix = pathCharacters(fullPath.slice(0, slash));
+      let low = 0;
+      let high = prefix.length;
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        el.textContent = `${prefix.slice(0, mid).join("")}…/${basename}`;
+        if (fits()) low = mid;
+        else high = mid - 1;
+      }
+      el.textContent = `${prefix.slice(0, low).join("")}…/${basename}`;
+    }
   }
 
   private applyPosition(
@@ -238,4 +336,3 @@ export class ReviewDetailsPopover extends Component {
     );
   }
 }
-

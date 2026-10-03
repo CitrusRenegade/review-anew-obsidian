@@ -202,12 +202,16 @@ describe("review details presentation", () => {
         position: 2,
         label: "Folder interval",
         value: "Projects/Active · 30 days",
+        folder: "Projects/Active",
+        days: 30,
         applied: false,
       },
       {
         position: 3,
         label: "Folder interval",
         value: "Projects · 20 days",
+        folder: "Projects",
+        days: 20,
         applied: false,
       },
       {
