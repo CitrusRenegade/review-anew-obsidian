@@ -1,4 +1,5 @@
 import type { TFile } from "obsidian";
+import { isWithinFolder } from "./folderRules";
 
 interface RenameRefreshHost {
   getMarkdownFiles(): TFile[];
@@ -25,7 +26,7 @@ export class ReviewRenameCoordinator {
   queue(file?: TFile, folderPath?: string): void {
     if (this.disposed) return;
     const affected = file ? [file] : folderPath
-      ? this.host.getMarkdownFiles().filter((entry) => entry.path.startsWith(`${folderPath}/`))
+      ? this.host.getMarkdownFiles().filter((entry) => isWithinFolder(entry.path, folderPath))
       : [];
     for (const entry of affected) {
       this.pendingFiles.add(entry);
@@ -81,7 +82,7 @@ export class ReviewRenameCoordinator {
 
   removeFolder(path: string): void {
     for (const file of this.pendingFiles) {
-      if (file.path.startsWith(`${path}/`)) this.pendingFiles.delete(file);
+      if (isWithinFolder(file.path, path)) this.pendingFiles.delete(file);
     }
     this.finishRemoval();
   }

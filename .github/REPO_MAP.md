@@ -14,6 +14,7 @@ This repository is an Obsidian plugin for scheduled note review.
 
 - `src/review.ts` owns reviewability, interval precedence, folder include/exclude behavior, reviewed-day normalization, due checks, due counts, and random due-note selection.
 - Effective interval precedence is per-note frontmatter interval, per-note `never`, folder filter, folder-specific interval, then global interval.
+- `src/folderRules.ts` owns the raw descendant predicate `isWithinFolder`, folder-rule normalization and rename migration. The predicate does not normalize paths or include the folder itself; exact-folder equality stays explicit in migration, and interval tie-breaks stay in their callers.
 - The same evaluator supplies effective intervals, reviewable-note selection and optional explanation candidates. Vault scans do not build or sort explanation candidates.
 - `DueCounterCache` in `src/review.ts` incrementally recalculates changed files and rebuilds on settings or local-day changes. The status-bar counter owns this cache; random selection reads current metadata independently.
 

@@ -1,3 +1,5 @@
+import { isWithinFolder } from "./folderRules";
+
 export type RenamedReviewTargetKind = "file" | "folder" | "other";
 
 export function shouldRefreshActiveReviewAfterRename(
@@ -11,5 +13,5 @@ export function shouldRefreshActiveReviewAfterRename(
   return targetKind === "folder" &&
     activeFilePath !== undefined &&
     renamedFolderPath !== undefined &&
-    activeFilePath.startsWith(`${renamedFolderPath}/`);
+    isWithinFolder(activeFilePath, renamedFolderPath);
 }

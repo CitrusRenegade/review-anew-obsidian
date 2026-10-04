@@ -2,6 +2,7 @@ import type { App, TFile } from "obsidian";
 import { parsePositiveDayCount } from "./interval";
 import type { FolderInterval, ReviewSettings } from "./settingsTypes";
 import { formatLocalDate } from "./dates";
+import { isWithinFolder } from "./folderRules";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const NEVER_REVIEWED_RANDOM_SCORE = 1.5;
@@ -172,7 +173,7 @@ export function isExcluded(file: TFile, settings: ReviewSettings): boolean {
     settings.folderFilterMode === "included"
       ? settings.includedFolders
       : settings.excludedFolders;
-  const inList = list.some((folder) => file.path.startsWith(folder + "/"));
+  const inList = list.some((folder) => isWithinFolder(file.path, folder));
   return settings.folderFilterMode === "included" ? !inList : inList;
 }
 
@@ -195,7 +196,7 @@ export function getFolderInterval(
 ): number | null {
   let best: FolderInterval | null = null;
   for (const rule of settings.folderIntervals) {
-    if (file.path.startsWith(rule.folder + "/")) {
+    if (isWithinFolder(file.path, rule.folder)) {
       if (!best || rule.folder.length > best.folder.length) {
         best = rule;
       }
@@ -233,7 +234,7 @@ function evaluateReviewInterval(
   if (!explain) return effectiveIntervalDays;
 
   const matchingFolderRules = settings.folderIntervals
-    .filter((rule) => file.path.startsWith(rule.folder + "/"))
+    .filter((rule) => isWithinFolder(file.path, rule.folder))
     .sort((left, right) => right.folder.length - left.folder.length);
   const candidates: ReviewIntervalCandidate[] = [];
 

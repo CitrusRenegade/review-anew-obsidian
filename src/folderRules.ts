@@ -6,6 +6,11 @@ interface FolderReviewRuleSettings {
   folderIntervals: FolderInterval[];
 }
 
+/** Descendant check only: callers own normalization and exact-folder equality. */
+export function isWithinFolder(path: string, folder: string): boolean {
+  return path.startsWith(`${folder}/`);
+}
+
 function normalizeFolderPath(path: string): string {
   return path
     .trim()
@@ -22,7 +27,7 @@ function migrateFolderPath(
   if (folderPath === oldFolderPath) return newFolderPath;
 
   const oldPrefix = oldFolderPath + "/";
-  if (folderPath.startsWith(oldPrefix)) {
+  if (isWithinFolder(folderPath, oldFolderPath)) {
     return newFolderPath + "/" + folderPath.slice(oldPrefix.length);
   }
 
