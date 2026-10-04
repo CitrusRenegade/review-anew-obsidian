@@ -35,6 +35,7 @@ import {
   formatDueStatus,
   getReviewStatusPresentation,
   ReviewStatusBar,
+  DueCounterStatusBar,
 } from "../src/statusbar";
 import type { ReviewDetails } from "../src/reviewDetails";
 import type { ReviewSettings } from "../src/settings";
@@ -101,6 +102,34 @@ describe("ReviewStatusBar review details", () => {
 });
 
 describe("formatDueStatus", () => {
+  it("shows an incomplete zero count while metadata is pending, then restores an exact count", () => {
+    const target = { path: "pending.md", extension: "md" } as TFile;
+    let unresolved = true;
+    const countEl = { setText: vi.fn() };
+    const setAttribute = vi.fn();
+    const toggleClass = vi.fn();
+    const el = {
+      addClass: vi.fn(), addEventListener: vi.fn(), setAttribute, toggleClass,
+      createSpan: vi.fn().mockReturnValueOnce({}).mockReturnValueOnce(countEl),
+    } as unknown as HTMLElement;
+    const app = {
+      vault: { getMarkdownFiles: () => [target] },
+      metadataCache: { getFileCache: () => ({ frontmatter: {} }) },
+    } as unknown as App;
+    const counter = new DueCounterStatusBar(el, app, () => createSettings(0), () => {}, () => !unresolved);
+    counter.setMetadataRefreshPending(true);
+    counter.update();
+    expect(countEl.setText).toHaveBeenLastCalledWith("0+");
+    expect(toggleClass).toHaveBeenLastCalledWith("review-hidden", false);
+    expect(setAttribute).toHaveBeenCalledWith("aria-label", expect.stringContaining("waiting"));
+    unresolved = false;
+    counter.invalidateFile(target);
+    counter.setMetadataRefreshPending(false);
+    counter.update();
+    expect(countEl.setText).toHaveBeenLastCalledWith("1");
+    expect(setAttribute).toHaveBeenLastCalledWith("aria-label", "1 notes due for review across vault. Click to open random one.");
+  });
+
   it("shows the overdue day count instead of a review date", () => {
     expect(formatDueStatus({ kind: "overdue", days: 59 })).toBe(
       "⚠ Overdue · 59d"

@@ -157,11 +157,12 @@ export class DueCounterStatusBar {
     statusBarEl: HTMLElement,
     app: App,
     getSettings: () => ReviewSettings,
-    onClick: () => void
+    onClick: () => void,
+    canEvaluate: (file: TFile) => boolean = () => true
   ) {
     this.el = statusBarEl;
     this.getSettings = getSettings;
-    this.cache = new DueCounterCache(app, getSettings);
+    this.cache = new DueCounterCache(app, getSettings, canEvaluate);
 
     this.el.addClass("review-due-counter");
     this.el.setAttribute("data-tooltip-position", "top");
@@ -172,8 +173,6 @@ export class DueCounterStatusBar {
   }
 
   update(): void {
-    if (this.metadataRefreshPending) return;
-
     const settings = this.getSettings();
     if (!settings.showDueCounter) {
       this.el.addClass("review-hidden");
@@ -181,12 +180,14 @@ export class DueCounterStatusBar {
     }
 
     const n = this.cache.countDue();
-    this.countEl.setText(String(n));
+    this.countEl.setText(`${n}${this.metadataRefreshPending ? "+" : ""}`);
     this.el.setAttribute(
       "aria-label",
-      `${n} notes due for review across vault. Click to open random one.`
+      this.metadataRefreshPending
+        ? `${n} notes due for review; waiting for moved notes. Count is incomplete. Click to open an available note.`
+        : `${n} notes due for review across vault. Click to open random one.`
     );
-    this.el.toggleClass("review-hidden", n === 0);
+    this.el.toggleClass("review-hidden", n === 0 && !this.metadataRefreshPending);
   }
 
   invalidateAll(): void {
@@ -195,7 +196,6 @@ export class DueCounterStatusBar {
 
   setMetadataRefreshPending(pending: boolean): void {
     this.metadataRefreshPending = pending;
-    this.el.toggleClass("review-hidden", pending);
   }
 
   invalidateFile(file: TFile): void {

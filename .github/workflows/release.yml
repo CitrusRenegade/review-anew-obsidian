@@ -77,6 +77,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npx playwright install --with-deps chromium
+
       - run: npm run check
 
       - uses: actions/attest-build-provenance@v2

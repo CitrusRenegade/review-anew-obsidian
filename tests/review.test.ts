@@ -60,6 +60,48 @@ function appWithFrontmatter(
   } as unknown as App;
 }
 
+describe("review rule agreement", () => {
+  it("excludes unresolved identities from both random selection and incremental counting", () => {
+    const app = appWithFrontmatter({ "pending.md": {}, "ready.md": {} });
+    const [pending, ready] = app.vault.getMarkdownFiles();
+    const unresolved = new Set([pending]);
+    const canEvaluate = (target: TFile) => !unresolved.has(target);
+    const cache = new DueCounterCache(app, () => baseSettings, canEvaluate);
+    expect(cache.countDue(NOW)).toBe(1);
+    expect(pickRandomDue(app, baseSettings, () => 0, canEvaluate)).toBe(ready);
+    unresolved.clear();
+    cache.invalidateFile(pending);
+    expect(cache.countDue(NOW)).toBe(2);
+    unresolved.add(ready);
+    cache.invalidateFile(ready);
+    expect(cache.countDue(NOW)).toBe(1);
+    expect(pickRandomDue(app, baseSettings, () => 0, canEvaluate)).toBe(pending);
+  });
+
+  it.each([
+    ["Archive/note.md", undefined, null],
+    ["Archived/note.md", undefined, 45],
+    ["Projects/Active/note.md", undefined, 30],
+    ["Projects/Active/note.md", 7, 7],
+    ["Archive/note.md", 7, 7],
+    ["Projects/Active/note.md", "never", null],
+    ["Archive/note.md", "7days", null],
+  ])("keeps all review consumers consistent for %s with %s", (path, override, expected) => {
+    const settings = {
+      ...baseSettings, excludedFolders: ["Archive"],
+      folderIntervals: [{ folder: "Projects", days: 20 }, { folder: "Projects/Active", days: 30 }],
+    };
+    const app = appWithFrontmatter({ [path]: { review_interval: override } });
+    const target = file(path);
+    expect(getEffectiveInterval(target, app, settings)).toBe(expected);
+    expect(getReviewIntervalCalculation(target, app, settings).effectiveIntervalDays).toBe(expected);
+    expect(getReviewableFiles(app, settings).map((f) => f.path)).toEqual(expected === null ? [] : [path]);
+    expect(isDue(target, app, settings, NOW)).toBe(expected !== null);
+    expect(countDue(app, settings)).toBe(expected === null ? 0 : 1);
+    expect(pickRandomDue(app, settings)?.path ?? null).toBe(expected === null ? null : path);
+  });
+});
+
 describe("pickTournamentWinner", () => {
   it("returns null when no notes are due", () => {
     expect(pickTournamentWinner([], () => 0)).toBeNull();
@@ -651,6 +693,14 @@ describe("getLastReviewedDay", () => {
 });
 
 describe("calendar review-day arithmetic", () => {
+  it.each([
+    [2026, 2, 8, "2026-03-07"],
+    [2026, 10, 1, "2026-10-31"],
+  ])("counts calendar days across a DST transition at %i-%i-%i", (year, month, day, reviewed) => {
+    expect(getCalendarDayDelta(reviewed, new Date(year, month, day, 23, 59))).toBe(1);
+    expect(getCalendarDayDelta(reviewed, new Date(year, month, day + 1, 0, 0))).toBe(2);
+  });
+
   it("keeps a signed calendar-day delta for review-detail timing", () => {
     expect(getCalendarDayDelta("2026-09-10", new Date(2026, 7, 28))).toBe(-13);
   });

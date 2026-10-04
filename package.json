@@ -12,11 +12,13 @@
     "dev:reload": "node esbuild.config.mjs --watch-reload",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "build:reload": "npm run build && node esbuild.config.mjs --reload-only",
-    "check": "npm test && npm run build && npm run lint:obsidian && npm run lint:css",
+    "check": "npm test && npm run test:timezones && npm run build && npm run lint:obsidian && npm run lint:css && npm run test:browser",
     "lint:css": "stylelint styles.css --max-warnings 0",
     "lint:obsidian": "eslint src/ tests/",
     "test": "tsc --noEmit --skipLibCheck --project tsconfig.test.json && vitest run",
-    "test:browser": "node --test tests/browser/*.test.mjs"
+    "test:browser": "node --test --test-concurrency=2 tests/browser/*.test.mjs",
+    "test:timezones": "node tests/runTimezones.mjs",
+    "test:native": "node tests/native/runReviewSmoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

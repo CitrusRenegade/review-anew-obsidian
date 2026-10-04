@@ -1,6 +1,7 @@
 import type { App, TFile } from "obsidian";
 import { parsePositiveDayCount } from "./interval";
 import type { FolderInterval, ReviewSettings } from "./settings";
+import { formatLocalDate } from "./dates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const NEVER_REVIEWED_RANDOM_SCORE = 1.5;
@@ -8,6 +9,7 @@ export const NEVER_REVIEWED_RANDOM_SCORE = 1.5;
 export type ReviewDay = string;
 
 type RandomSource = () => number;
+type ReviewAvailability = (file: TFile) => boolean;
 
 export type ReviewIntervalCandidate =
   | { kind: "note"; days: number; applied: boolean }
@@ -58,10 +60,6 @@ function reviewDayFromDate(date: Date): ReviewDay | null {
     date.getUTCMonth() + 1,
     date.getUTCDate()
   );
-}
-
-function localDayKey(date: Date): string {
-  return formatReviewDay(date.getFullYear(), date.getMonth() + 1, date.getDate());
 }
 
 function parseDateOnly(value: string): ReviewDay | null | undefined {
@@ -206,21 +204,37 @@ export function getFolderInterval(
   return best ? best.days : null;
 }
 
-export function getReviewIntervalCalculation(
+function evaluateReviewInterval(
   file: TFile,
   app: App,
-  settings: ReviewSettings
-): ReviewIntervalCalculation {
+  settings: ReviewSettings,
+  explain: false
+): number | null;
+function evaluateReviewInterval(
+  file: TFile,
+  app: App,
+  settings: ReviewSettings,
+  explain: true
+): ReviewIntervalCalculation;
+function evaluateReviewInterval(
+  file: TFile,
+  app: App,
+  settings: ReviewSettings,
+  explain: boolean
+): ReviewIntervalCalculation | number | null {
   const local = getLocalInterval(file, app, settings);
-  const matchingFolderRules = settings.folderIntervals
-    .filter((rule) => file.path.startsWith(rule.folder + "/"))
-    .sort((left, right) => right.folder.length - left.folder.length);
   const effectiveIntervalDays =
     typeof local === "number"
       ? local
       : local === "never" || isExcluded(file, settings)
         ? null
-        : matchingFolderRules[0]?.days ?? settings.globalIntervalDays;
+        : getFolderInterval(file, settings) ?? settings.globalIntervalDays;
+  // Scans retain the note-override fast path and do not allocate/sort explanations.
+  if (!explain) return effectiveIntervalDays;
+
+  const matchingFolderRules = settings.folderIntervals
+    .filter((rule) => file.path.startsWith(rule.folder + "/"))
+    .sort((left, right) => right.folder.length - left.folder.length);
   const candidates: ReviewIntervalCandidate[] = [];
 
   if (typeof local === "number") {
@@ -252,21 +266,20 @@ export function getReviewIntervalCalculation(
   };
 }
 
+export function getReviewIntervalCalculation(
+  file: TFile,
+  app: App,
+  settings: ReviewSettings
+): ReviewIntervalCalculation {
+  return evaluateReviewInterval(file, app, settings, true);
+}
+
 export function getEffectiveInterval(
   file: TFile,
   app: App,
   settings: ReviewSettings
 ): number | null {
-  const local = getLocalInterval(file, app, settings);
-  if (local === "never") return null;
-  if (typeof local === "number") return local;
-
-  if (isExcluded(file, settings)) return null;
-
-  const folderInterval = getFolderInterval(file, settings);
-  if (folderInterval !== null) return folderInterval;
-
-  return settings.globalIntervalDays;
+  return evaluateReviewInterval(file, app, settings, false);
 }
 
 export function getLastReviewedDay(
@@ -295,32 +308,30 @@ export function getReviewableFiles(
   app: App,
   settings: ReviewSettings
 ): TFile[] {
-  return app.vault.getMarkdownFiles().filter((f) => {
-    const local = getLocalInterval(f, app, settings);
-    if (local === "never") return false;
-    if (typeof local === "number") return true;
-    if (isExcluded(f, settings)) return false;
-    return true;
-  });
+  return app.vault.getMarkdownFiles().filter((f) =>
+    getEffectiveInterval(f, app, settings) !== null
+  );
 }
 
 export function getDueFiles(
   app: App,
   settings: ReviewSettings,
-  now = new Date()
+  now = new Date(),
+  canEvaluate: ReviewAvailability = () => true
 ): TFile[] {
-  return getReviewableFiles(app, settings).filter((f) =>
-    isDue(f, app, settings, now)
+  return app.vault.getMarkdownFiles().filter((f) =>
+    canEvaluate(f) && isDue(f, app, settings, now)
   );
 }
 
 export function pickRandomDue(
   app: App,
   settings: ReviewSettings,
-  random: RandomSource = Math.random
+  random: RandomSource = Math.random,
+  canEvaluate: ReviewAvailability = () => true
 ): TFile | null {
   const now = new Date();
-  const due = getDueFiles(app, settings, now);
+  const due = getDueFiles(app, settings, now, canEvaluate);
   return pickTournamentWinner(
     due,
     (file) => {
@@ -350,7 +361,8 @@ export class DueCounterCache {
 
   constructor(
     app: App,
-    getSettings: () => ReviewSettings
+    getSettings: () => ReviewSettings,
+    private readonly canEvaluate: ReviewAvailability = () => true
   ) {
     this.app = app;
     this.getSettings = getSettings;
@@ -394,7 +406,7 @@ export class DueCounterCache {
   }
 
   countDue(now = new Date()): number {
-    if (this.dueCount !== null && this.countedDay !== localDayKey(now)) {
+    if (this.dueCount !== null && this.countedDay !== formatLocalDate(now)) {
       this.invalidateAll();
     }
 
@@ -410,10 +422,10 @@ export class DueCounterCache {
     this.entriesByPath.clear();
     this.dirtyFilesByPath.clear();
     this.dueCount = 0;
-    this.countedDay = localDayKey(now);
+    this.countedDay = formatLocalDate(now);
 
     for (const file of this.app.vault.getMarkdownFiles()) {
-      const due = isDue(file, this.app, this.getSettings(), now);
+      const due = this.canEvaluate(file) && isDue(file, this.app, this.getSettings(), now);
       this.entriesByPath.set(file.path, { file, due });
       if (due) {
         this.dueCount += 1;
@@ -427,7 +439,7 @@ export class DueCounterCache {
     if (this.dirtyFilesByPath.size === 0 || this.dueCount === null) return;
 
     for (const [path, file] of this.dirtyFilesByPath) {
-      const due = isDue(file, this.app, this.getSettings(), now);
+      const due = this.canEvaluate(file) && isDue(file, this.app, this.getSettings(), now);
       this.entriesByPath.set(path, { file, due });
       if (due) {
         this.dueCount += 1;

@@ -47,11 +47,11 @@ vi.mock("../src/statusbar", async () => {
       count = 0;
       pendingMetadataRefresh = false;
       constructor(_el: unknown, app: App, settings: () => import("../src/settings").ReviewSettings,
-        _open: unknown) {
-        this.cache = new DueCounterCache(app, settings);
+        _open: unknown, canEvaluate: (file: TFile) => boolean) {
+        this.cache = new DueCounterCache(app, settings, canEvaluate);
       }
       update() {
-        if (!this.pendingMetadataRefresh) this.count = this.cache.countDue();
+        this.count = this.cache.countDue();
       }
       setMetadataRefreshPending(value: boolean) { this.pendingMetadataRefresh = value; }
       invalidateAll() { this.cache.invalidateAll(); }
@@ -81,13 +81,32 @@ async function setup() {
   let cacheAvailable = true;
   let activeFile: TFile | null = file;
   type EventHandler = (...args: unknown[]) => void;
-  const metadataHandlers = new Map<string, EventHandler>();
-  const vaultHandlers = new Map<string, EventHandler>();
-  const workspaceHandlers = new Map<string, EventHandler>();
+  function eventBus() {
+    const handlers = new Map<string, EventHandler[]>();
+    return {
+      on(event: string, callback: (...args: never[]) => void) {
+        const listeners = handlers.get(event) ?? [];
+        listeners.push(callback as unknown as EventHandler);
+        handlers.set(event, listeners);
+      },
+      emit(event: string, ...args: unknown[]) {
+        for (const listener of handlers.get(event) ?? []) listener(...args);
+      },
+    };
+  }
+  const metadataHandlers = eventBus();
+  const vaultHandlers = eventBus();
+  const workspaceHandlers = eventBus();
   const openFile = vi.fn(async () => undefined);
   let finish!: () => void;
   let fail!: (error: Error) => void;
-  const write = vi.fn(() => new Promise<void>((resolve, reject) => { finish = resolve; fail = reject; }));
+  const persisted: Record<string, unknown> = {};
+  const write = vi.fn((_file: TFile, mutate: (data: Record<string, unknown>) => void) =>
+    new Promise<void>((resolve, reject) => {
+      finish = () => { mutate(persisted); resolve(); };
+      fail = reject;
+    })
+  );
   const app = {
     metadataCache: {
       getFileCache: (target: TFile) => {
@@ -100,12 +119,12 @@ async function setup() {
         };
       },
       on: (event: string, callback: (...args: never[]) => void) =>
-        metadataHandlers.set(event, callback as unknown as EventHandler),
+        metadataHandlers.on(event, callback),
     },
     workspace: {
       getActiveFile: () => activeFile,
       on: (event: string, callback: (...args: never[]) => void) =>
-        workspaceHandlers.set(event, callback as unknown as EventHandler),
+        workspaceHandlers.on(event, callback),
       onLayoutReady: () => {},
       getLeaf: () => ({ openFile }),
     },
@@ -113,11 +132,15 @@ async function setup() {
       getMarkdownFiles: () => markdownFiles,
       getAbstractFileByPath: () => file,
       on: (event: string, callback: (...args: never[]) => void) =>
-        vaultHandlers.set(event, callback as unknown as EventHandler),
+        vaultHandlers.on(event, callback),
     },
     fileManager: { processFrontMatter: write },
   } as unknown as App;
   const plugin = new ReviewPlugin(app, {} as never);
+  const focusHandlers: (() => void)[] = [];
+  vi.spyOn(plugin, "registerDomEvent").mockImplementation((_el, event, callback) => {
+    if (event === "focus") focusHandlers.push(callback as () => void);
+  });
   await plugin.onload();
   const internal = plugin as unknown as {
     markReviewed(file: TFile): Promise<boolean>;
@@ -127,39 +150,110 @@ async function setup() {
   };
   plugin.updateAll();
   const changed = () => {
-    metadataHandlers.get("changed")!(file);
+    metadataHandlers.emit("changed", file);
     vi.advanceTimersByTime(500);
   };
-  const emitChanged = () => metadataHandlers.get("changed")!(file);
+  const emitChanged = () => metadataHandlers.emit("changed", file);
   const rename = (oldPath: string, target: TFile = file) =>
-    vaultHandlers.get("rename")!(target, oldPath);
+    vaultHandlers.emit("rename", target, oldPath);
   const renameFolder = (folder: InstanceType<typeof FolderClass>, oldPath: string) =>
-    vaultHandlers.get("rename")!(folder, oldPath);
+    vaultHandlers.emit("rename", folder, oldPath);
   const deleteFile = (target: TFile) => {
     markdownFiles = markdownFiles.filter((file) => file !== target);
     vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(null);
-    vaultHandlers.get("delete")!(target);
+    vaultHandlers.emit("delete", target);
   };
   const deleteFolder = (folder: InstanceType<typeof FolderClass>) => {
     markdownFiles = [];
     vi.spyOn(app.vault, "getAbstractFileByPath").mockReturnValue(null);
-    vaultHandlers.get("delete")!(folder);
+    vaultHandlers.emit("delete", folder);
   };
-  const resolved = () => metadataHandlers.get("resolved")?.();
+  const resolved = () => metadataHandlers.emit("resolved");
   return {
-    app, plugin, internal, fm, file, otherFile, changed, emitChanged,
+    app, plugin, internal, fm, persisted, file, otherFile, changed, emitChanged,
     rename, renameFolder, deleteFile, deleteFolder, resolved, openFile,
     setCacheAvailable: (value: boolean) => { cacheAvailable = value; },
     setMarkdownFiles: (files: TFile[]) => { markdownFiles = files; },
+    focus: () => { for (const handler of focusHandlers) handler(); },
     setActiveFile: (value: TFile | null) => {
       activeFile = value;
-      workspaceHandlers.get("active-leaf-change")?.();
+      workspaceHandlers.emit("active-leaf-change");
     },
     finish: () => finish(), fail: () => fail(new Error("write failed")), write,
   };
 }
 
 describe("review write and metadata lifecycle", () => {
+  it("does not start a new review write while the moved note's metadata is unknown", async () => {
+    const s = await setup();
+    s.setCacheAvailable(false);
+    s.file.path = "Archive/note.md";
+    s.rename("note.md");
+    const mark = s.internal.markReviewed(s.file);
+    if (s.write.mock.calls.length) s.finish();
+    expect(await mark).toBe(false);
+    expect(s.write).not.toHaveBeenCalled();
+  });
+
+  it.each(["timer", "focus"])("refreshes due membership after local midnight through %s", async (trigger) => {
+    const s = await setup();
+    vi.setSystemTime(new Date(2026, 2, 7, 23, 59));
+    s.plugin.settings.globalIntervalDays = 1;
+    s.fm.reviewed = "2026-03-07";
+    s.plugin.refreshReviewState();
+    // Focus aligns the day scheduler with this controlled pre-midnight clock.
+    s.focus();
+    expect(s.internal.dueCounter.count).toBe(0);
+    if (trigger === "timer") vi.advanceTimersByTime(61000);
+    else {
+      vi.setSystemTime(new Date(2026, 2, 8, 12));
+      s.focus();
+    }
+    expect(s.internal.dueCounter.count).toBe(1);
+    expect(s.internal.statusBar.day).toBe("2026-03-07");
+  });
+
+  it("keeps unrelated due notes available during a stalled rename and restores late metadata", async () => {
+    const s = await setup();
+    const remaining = new FileClass();
+    remaining.path = "remaining.md";
+    s.fm.reviewed = "9999-01-01";
+    s.setMarkdownFiles([s.file, remaining]);
+    s.plugin.refreshReviewState();
+    s.setCacheAvailable(false);
+    s.file.path = "Archive/note.md";
+    s.rename("note.md");
+    await Promise.resolve();
+    vi.advanceTimersByTime(10000);
+    expect(s.internal.statusBar.hidden).toBe(true);
+    await s.internal.openRandomDue();
+    expect(s.openFile).toHaveBeenCalledExactlyOnceWith(remaining);
+    s.setCacheAvailable(true);
+    vi.advanceTimersByTime(1000);
+    expect(s.internal.statusBar.day).toBe("9999-01-01");
+    expect(s.internal.dueCounter.count).toBe(1);
+    expect(s.internal.dueCounter.pendingMetadataRefresh).toBe(false);
+  });
+
+  it.each(["reviewed", "checked"])("writes today's local day only to the configured %s field", async (key) => {
+    const s = await setup();
+    vi.setSystemTime(new Date(2026, 9, 4, 0, 5));
+    s.plugin.settings.frontmatterReviewedKey = key;
+    Object.assign(s.persisted, { title: "Keep", review_interval: 14, unrelated: ["a"] });
+    s.fm[key] = "2000-01-01";
+    const mark = s.internal.markReviewed(s.file);
+    s.finish();
+    expect(await mark).toBe(true);
+    expect(s.persisted).toEqual({
+      title: "Keep", review_interval: 14, unrelated: ["a"], [key]: "2026-10-04",
+    });
+    // Persisting a write is separate from publishing a metadata snapshot.
+    expect(s.internal.statusBar.day).toBe("2000-01-01");
+    Object.assign(s.fm, s.persisted);
+    s.changed();
+    expect(s.internal.statusBar.day).toBe("2026-10-04");
+  });
+
   it("does not overwrite an interval when saved frontmatter keys collide", async () => {
     const s = await setup();
     s.plugin.settings.frontmatterReviewedKey = "review_interval";

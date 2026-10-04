@@ -18,10 +18,10 @@ export default defineConfig([
     },
   },
   {
-    files: ["tests/browser/**/*.mjs"],
+    files: ["tests/browser/**/*.mjs", "tests/native/**/*.mjs", "tests/runTimezones.mjs"],
     languageOptions: { globals: { process: "readonly" } },
     rules: {
-      // The browser test runner executes in Node, outside the plugin bundle.
+      // Test runners execute in Node, outside the plugin bundle.
       "obsidianmd/no-nodejs-modules": "off",
     },
   },
