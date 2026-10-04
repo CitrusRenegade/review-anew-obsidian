@@ -21,7 +21,7 @@ This repository is an Obsidian plugin for scheduled note review.
 ## Settings and UI
 
 - `src/settingsTypes.ts` defines the domain settings types without importing the host or UI.
-- `src/settings.ts` owns defaults, saved-data sanitization, and the Obsidian settings tab.
+- `src/settings.ts` owns defaults, saved-data sanitization, and the Obsidian settings tab. Known fields are validated; unknown JSON fields survive load/save/reload for forward compatibility.
 - `src/statusbar.ts` renders the current-note review status and vault-wide due counter, including click handlers for opening review details or a random due note.
 - `src/reviewDetailsPopover.ts` shows current-note timing and calculation details and directly confirms marking the note reviewed.
 
@@ -46,7 +46,7 @@ This repository is an Obsidian plugin for scheduled note review.
 - `tests/dates.test.ts` covers local date formatting.
 - `tests/reviewLifecycle.test.ts` covers write/metadata ordering, configured writer fields and rename events. Persisted frontmatter is separate from published metadata; events allow multiple listeners.
 - `tests/reviewRenameCoordinator.test.ts` covers repeated moves and cancellation of queued/delayed work on unload.
-- `tests/settingsCompatibility.test.ts` covers persisted settings meaning and save/reload compatibility; settings and settings-tab tests cover rule migration and controls.
+- `tests/settingsCompatibility.test.ts` covers persisted settings meaning, unknown JSON field retention and save/reload compatibility; settings and settings-tab tests cover rule migration and controls. Native acceptance also exercises the real `saveData` and plugin reload boundary.
 - Details, status, actions, positioning and rename notices have focused unit suites.
 - `tests/browser/*.test.mjs` renders popovers with production CSS in Chromium. Obsidian APIs are substituted; these tests do not establish real-host compatibility.
 - `npm run check` runs unit/type checks, calendar-day regressions in UTC, America/Los_Angeles and Pacific/Kiritimati, build, both linters and browser tests. The timezone runs include DST boundaries, local midnight and focus after a skipped day. Run `npx playwright install chromium` for local browser setup; CI/release install Chromium and Linux dependencies explicitly.

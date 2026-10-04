@@ -4,6 +4,7 @@ export async function runReviewSmoke(app, win, options) {
   const doc = win.document;
   const report = { status: 'Running', scenarios: [], cleanup: { status: 'Pending' } };
   const root = options.fixtureRoot;
+  const futureSettingsKey = `${root}-future-settings`;
   const movedRoot = `${root}-moved`;
   const pluginId = 'review-simple';
   let plugin = app.plugins.plugins[pluginId];
@@ -16,6 +17,7 @@ export async function runReviewSmoke(app, win, options) {
   const ownedFolders = new Set();
   let blockedFile = null;
   let settingsChanged = false;
+  let futureSettingsOwned = false;
   let fixture;
   const status = () => doc.querySelector('.review-status-bar');
   const popup = () => doc.querySelector('.review-details-popover:not([aria-hidden])');
@@ -57,6 +59,7 @@ export async function runReviewSmoke(app, win, options) {
     if (!plugin.settings.showReviewStatus || !plugin.settings.showDueCounter) block('Enable review status and due counter for native UI acceptance');
     if (reviewedKey === intervalKey) block('Saved frontmatter fields collide');
     check(!app.vault.getAbstractFileByPath(root) && !app.vault.getAbstractFileByPath(movedRoot), 'Fixture root already exists');
+    check(!(futureSettingsKey in plugin.settings), 'Future settings fixture key already exists');
     const collides = path => [root, movedRoot].some(base => path === base || path.startsWith(`${base}/`));
     check(!plugin.settings.folderIntervals.some(rule => collides(rule.folder)) && !plugin.settings.includedFolders.some(collides), 'Fixture rules already exist');
     ownedFolders.add(await app.vault.createFolder(root));
@@ -225,6 +228,25 @@ export async function runReviewSmoke(app, win, options) {
       app.metadataCache.getFileCache = originalGetCache;
     });
 
+    await scenario('unknown JSON settings survive actual saveData and plugin reload', async () => {
+      const future = { enabled: false, version: 2, weights: [0, 7], pausedAt: null };
+      const expectedSettings = JSON.stringify(plugin.settings);
+      futureSettingsOwned = true;
+      plugin.settings[futureSettingsKey] = future;
+      await plugin.saveSettings();
+      const saved = await plugin.loadData();
+      check(JSON.stringify(saved[futureSettingsKey]) === JSON.stringify(future), 'Real saveData lost the unknown setting');
+      await app.plugins.disablePlugin(pluginId);
+      await app.plugins.enablePlugin(pluginId);
+      plugin = app.plugins.plugins[pluginId];
+      check(JSON.stringify(plugin.settings[futureSettingsKey]) === JSON.stringify(future), 'Reload lost the unknown JSON setting');
+      delete plugin.settings[futureSettingsKey];
+      futureSettingsOwned = false;
+      check(JSON.stringify(plugin.settings) === expectedSettings, 'Reload changed existing settings');
+      await plugin.saveSettings();
+      await wait(() => status()?.textContent.includes(today), 'status after settings round-trip reload');
+    });
+
     await scenario('pending deletion restores exact count; unload cancels pending coordination', async () => {
       app.metadataCache.getFileCache = function(file) {
         return file === blockedFile ? null : originalGetCache.call(this, file);
@@ -270,6 +292,7 @@ export async function runReviewSmoke(app, win, options) {
       if (!app.plugins.plugins[pluginId]) await app.plugins.enablePlugin(pluginId);
       plugin = app.plugins.plugins[pluginId];
       plugin.statusBar?.closeDetails(false);
+      if (futureSettingsOwned) delete plugin.settings[futureSettingsKey];
       const isOwnedPath = path => path === root || path.startsWith(`${root}/`) || path === movedRoot || path.startsWith(`${movedRoot}/`);
       if (settingsChanged) {
         plugin.settings.folderIntervals = plugin.settings.folderIntervals.filter(rule => !isOwnedPath(rule.folder));

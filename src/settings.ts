@@ -123,6 +123,8 @@ function asFolderIntervals(value: unknown): FolderInterval[] {
 export function loadReviewSettings(data: unknown): ReviewSettings {
   const raw = isRecord(data) ? data : {};
   const settings = {
+    // Preserve future JSON fields; validated known fields always take precedence.
+    ...raw,
     renameNoticeHandled: raw.renameNoticeHandled === true,
     globalIntervalDays: asPositiveDayCount(
       raw.globalIntervalDays,

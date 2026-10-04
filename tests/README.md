@@ -6,6 +6,8 @@ Run `npm run check` before handing off a candidate. It includes the Chromium pop
 
 Preserve plugin ID `review-simple`, commands `open-random` and `mark-current`, saved settings keys/defaults, custom frontmatter keys, and the existing interval precedence. Preserve both folder lists when switching modes, first-wins normalized duplicate folder rules, and tournament selection behavior.
 
+Known settings are validated on load; unknown JSON fields, including nested values and falsy values, survive serialization and reload. Unit tests exercise this round-trip directly; native acceptance saves a suite-owned future field through real `saveData`, reloads the plugin and removes the field during cleanup.
+
 Reviewed values are calendar days. New marks write the local `YYYY-MM-DD` day; legacy Date/numeric inputs retain UTC-day normalization and datetime strings retain the written day. Persisted writes and metadata publication are separate events. A successful mark must never override a newer metadata edit or deletion.
 
 Missing relocated metadata is unknown, not an empty note. Only unresolved file identities are excluded from random selection and counting; ready members of a moved folder recover independently. While waiting, the counter shows `N+` with an incomplete-count explanation, including `0+`. After the first second, probes slow to once per second without giving up on late recovery. Metadata events recover immediately; deletion and unload cancel obsolete work.
