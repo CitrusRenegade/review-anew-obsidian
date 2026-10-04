@@ -6,7 +6,7 @@ import {
   getReviewTimingPresentation,
   getReviewDetails,
 } from "../src/reviewDetails";
-import type { ReviewSettings } from "../src/settings";
+import type { ReviewSettings } from "../src/settingsTypes";
 
 const settings: ReviewSettings = {
   globalIntervalDays: 30,

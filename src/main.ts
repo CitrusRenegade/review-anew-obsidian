@@ -8,10 +8,10 @@ import {
   normalizePath,
 } from "obsidian";
 import {
-  ReviewSettings,
   ReviewSettingTab,
   loadReviewSettings,
 } from "./settings";
+import type { ReviewSettings } from "./settingsTypes";
 import { migrateRenamedFolderReviewRules } from "./folderRules";
 import { DueCounterStatusBar, ReviewStatusBar } from "./statusbar";
 import { getEffectiveInterval, pickRandomDue } from "./review";

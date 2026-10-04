@@ -1,6 +1,6 @@
 import type { App, TFile } from "obsidian";
 import { parsePositiveDayCount } from "./interval";
-import type { FolderInterval, ReviewSettings } from "./settings";
+import type { FolderInterval, ReviewSettings } from "./settingsTypes";
 import { formatLocalDate } from "./dates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

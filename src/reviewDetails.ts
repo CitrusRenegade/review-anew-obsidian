@@ -7,7 +7,7 @@ import {
   type ReviewIntervalCandidate,
   type ReviewIntervalCalculation,
 } from "./review";
-import type { ReviewSettings } from "./settings";
+import type { ReviewSettings } from "./settingsTypes";
 
 export type ReviewTiming =
   | { kind: "never-reviewed"; days: null }

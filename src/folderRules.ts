@@ -1,4 +1,4 @@
-import type { FolderInterval } from "./settings";
+import type { FolderInterval } from "./settingsTypes";
 
 interface FolderReviewRuleSettings {
   excludedFolders: string[];

@@ -16,7 +16,7 @@ import {
   pickRandomDue,
   pickTournamentWinner,
 } from "../src/review";
-import type { ReviewSettings } from "../src/settings";
+import type { ReviewSettings } from "../src/settingsTypes";
 
 const NOW = new Date(2026, 0, 31, 12);
 

@@ -38,7 +38,7 @@ import {
   DueCounterStatusBar,
 } from "../src/statusbar";
 import type { ReviewDetails } from "../src/reviewDetails";
-import type { ReviewSettings } from "../src/settings";
+import type { ReviewSettings } from "../src/settingsTypes";
 
 function createStatusBarElement(): HTMLElement {
   return {

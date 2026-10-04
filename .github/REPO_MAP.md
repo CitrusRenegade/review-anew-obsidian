@@ -1,5 +1,5 @@
 ---
-last_reviewed: 2026-10-04
+last_reviewed: 2026-10-05
 ---
 
 # Repository map
@@ -19,7 +19,8 @@ This repository is an Obsidian plugin for scheduled note review.
 
 ## Settings and UI
 
-- `src/settings.ts` defines settings, defaults, saved-data sanitization, and the Obsidian settings tab.
+- `src/settingsTypes.ts` defines the domain settings types without importing the host or UI.
+- `src/settings.ts` owns defaults, saved-data sanitization, and the Obsidian settings tab.
 - `src/statusbar.ts` renders the current-note review status and vault-wide due counter, including click handlers for opening review details or a random due note.
 - `src/reviewDetailsPopover.ts` shows current-note timing and calculation details and directly confirms marking the note reviewed.
 

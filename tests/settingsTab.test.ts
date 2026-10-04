@@ -14,8 +14,8 @@ vi.mock("obsidian", () => ({
 import {
   loadReviewSettings,
   ReviewSettingTab,
-  type ReviewSettings,
 } from "../src/settings";
+import type { ReviewSettings } from "../src/settingsTypes";
 
 type Definition = {
   name?: string;

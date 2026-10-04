@@ -4,7 +4,7 @@ import {
   normalizeFolderReviewRules,
 } from "../src/folderRules";
 import { isValidFrontmatterKey } from "../src/frontmatterKey";
-import type { ReviewSettings } from "../src/settings";
+import type { ReviewSettings } from "../src/settingsTypes";
 
 const baseSettings: ReviewSettings = {
   globalIntervalDays: 45,

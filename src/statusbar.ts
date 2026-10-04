@@ -1,5 +1,5 @@
 import { App, TFile, setIcon } from "obsidian";
-import { ReviewSettings } from "./settings";
+import type { ReviewSettings } from "./settingsTypes";
 import {
   DueCounterCache,
   getEffectiveInterval,

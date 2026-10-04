@@ -8,28 +8,7 @@ import { parsePositiveDayCount } from "./interval";
 import { normalizeFolderReviewRules } from "./folderRules";
 import { isValidFrontmatterKey } from "./frontmatterKey";
 import type ReviewPlugin from "./main";
-
-export interface FolderInterval {
-  folder: string;
-  days: number;
-}
-
-export type FolderFilterMode = "excluded" | "included";
-
-export interface ReviewSettings {
-  renameNoticeHandled?: boolean;
-  globalIntervalDays: number;
-  folderFilterMode: FolderFilterMode;
-  excludedFolders: string[];
-  includedFolders: string[];
-  folderIntervals: FolderInterval[];
-  showReviewStatus: boolean;
-  showDueCounter: boolean;
-  showRibbonIcon: boolean;
-  reviewDetailsFontSizeAdjustment: number;
-  frontmatterIntervalKey: string;
-  frontmatterReviewedKey: string;
-}
+import type { FolderInterval, FolderFilterMode, ReviewSettings } from "./settingsTypes";
 
 export const DEFAULT_SETTINGS: ReviewSettings = {
   globalIntervalDays: 45,

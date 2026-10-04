@@ -28,7 +28,7 @@ vi.mock("../src/statusbar", async () => {
       hidden = false;
       constructor(
         _el: unknown, private app: App,
-        private settings: () => import("../src/settings").ReviewSettings,
+        private settings: () => import("../src/settingsTypes").ReviewSettings,
         _mark: unknown
       ) {}
       update(file: TFile | null) {
@@ -46,7 +46,7 @@ vi.mock("../src/statusbar", async () => {
       cache: InstanceType<typeof DueCounterCache>;
       count = 0;
       pendingMetadataRefresh = false;
-      constructor(_el: unknown, app: App, settings: () => import("../src/settings").ReviewSettings,
+      constructor(_el: unknown, app: App, settings: () => import("../src/settingsTypes").ReviewSettings,
         _open: unknown, canEvaluate: (file: TFile) => boolean) {
         this.cache = new DueCounterCache(app, settings, canEvaluate);
       }
